@@ -1,75 +1,49 @@
-# React + TypeScript + Vite
+# Find Food web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend web en React, Vite y TypeScript, basado en `Mock Up Proyecto de grado.fig`. Incluye módulos operativos, formularios y paneles laterales navegables. Es una demostración visual sin backend ni autenticación real.
 
-Currently, two official plugins are available:
+## Ejecutar
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Usar Node.js 22.13 o posterior (Node 24 recomendado) y npm. Extraer Findfood_Web.zip, abrir la carpeta findfood-front-web y ejecutar:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+Abrir la dirección que indique Vite, normalmente http://localhost:5173. Detener con Ctrl+C. Este proyecto no utiliza Expo ni QR.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Recorrer
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Iniciar sesión abre el dashboard sin autenticar. El menú lateral conecta los módulos. La campana abre notificaciones; el avatar permite cambiar contraseña o volver al login. «Ver todas las pantallas» abre una galería con 23 destinos que cubren los 24 marcos web (dos variantes de recepción comparten pantalla).
 
+En las tablas, «Ver» abre detalles, «Editar» abre un formulario y los botones «Nuevo» muestran el formulario correspondiente. Los filtros y búsquedas funcionan con datos de ejemplo. En Usuarios, «Voluntarios pendientes» permite revisar postulantes y abrir su detalle. Configuración permite mover ponderaciones y cambiar las paradas para revisar estados visuales. No se guarda ningún cambio.
+
+Las acciones que necesitan servicios están deshabilitadas: crear, guardar, aprobar/rechazar, enviar instrucciones, ofertar, confirmar recepción, exportar reporte y actualizar contraseña. No se solicitan cámara, ubicación ni datos externos. Las fotografías son placeholders y los mapas esquemas sin geolocalización.
+
+## Estructura
+
+- src/pages: pantallas de acceso, gestión y operación.
+- src/components: controles, mapas ilustrativos, notificaciones y drawer accesible mediante dialog nativo.
+- src/domain: modelos de presentación.
+- src/data: registros, configuración de tablas y galería.
+- src/services: puerto de lectura y adaptador de demostración.
+- src/state: contexto de datos y navegación por hash.
+- public/brand y public/fonts: logotipo e Inter locales.
+- docs/integracion-backend.md: guía y límites de preparación para backend.
+- docs/pantallas.md: inventario del Figma.
+
+## Verificar y compilar
+
+```bash
+npm run lint
+npm run test:render
+npm run build
+npm run preview
 ```
+
+Build incluye la comprobación TypeScript y genera dist. Las pruebas de renderizado comprueban pantallas, enlaces internos y registros inexistentes mediante React DOM Server, sin navegador; no prueban clics ni apariencia visual. El entorno de revisión bloquea el servidor local, por lo que queda pendiente revisar la UI en navegador. No se garantiza fidelidad píxel a píxel.
+
+## Publicar más adelante
+
+`dist` es una salida estática. Las rutas por hash facilitan recargar enlaces sin reglas de reescritura. Esta entrega no publica el sitio ni actualiza GitHub. No desplegar como aplicación real con usuarios hasta integrar seguridad y backend.
