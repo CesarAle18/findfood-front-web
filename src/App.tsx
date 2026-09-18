@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Brand, Card, Icon, NoticePanel } from "./components/ui";
 import { Management, EntityPanel } from "./pages/Management";
 import {
@@ -159,7 +159,7 @@ export default function App({
   ) : route.pathname === "/pendientes" ? (
     <Pending />
   ) : route.pathname === "/recepcion" ? (
-    <Reception key={id} id={id} />
+    <Reception key={id} id={id} volunteerId={route.params.get("voluntario")} />
   ) : route.pathname === "/configuracion" ? (
     <Settings />
   ) : route.pathname === "/cambiar-contrasena" ||
@@ -207,16 +207,20 @@ export default function App({
                   ["/voluntarios", "/pendientes"].includes(route.pathname)) ||
                 (path === "/recepciones" && route.pathname === "/recepcion");
               return (
+                <Fragment key={path}>
                 <a
-                  key={path}
                   href={"#" + path}
                   className={active ? "active" : ""}
-                  aria-current={active ? "page" : undefined}
+                  aria-current={route.pathname === path ? "page" : undefined}
                   onClick={() => setMenu(false)}
                 >
                   <Icon name={icon} />
                   <span>{label}</span>
                 </a>
+                {path === "/usuarios" && <div className="user-submenu" role="group" aria-label="Submenú de usuarios">
+                  <a href="#/pendientes" className={route.pathname === "/pendientes" ? "active" : ""} aria-current={route.pathname === "/pendientes" ? "page" : undefined} onClick={() => setMenu(false)}>Voluntarios pendientes</a>
+                </div>}
+                </Fragment>
               );
             })}
           </nav>

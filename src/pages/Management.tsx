@@ -47,7 +47,6 @@ export function Management({ module }: { module: ModuleKey }) {
             ["Almacenes activos", "6", "5 operativos"],
             ["Capacidad total", "8.500 kg", "73% ocupada"],
             ["Refrigerados", "2", "1.900 kg"],
-            ["Alertas de capacidad", "2", "Revisar"],
           ]}
         />
       )}
@@ -412,6 +411,10 @@ function EntityForm({
   const { entities } = useData();
   const [receiptId, setReceiptId] = useState(entities.recepciones[0]?.id || "");
   const receipt = entities.recepciones.find((row) => row.id === receiptId);
+  const [volunteerId, setVolunteerId] = useState("");
+  const selectedVolunteerId = volunteerId || entities.voluntarios.find(person => person.name === receipt?.volunteer)?.id || entities.voluntarios[0]?.id || "";
+  const [products, setProducts] = useState([{ id: 1, name: e?.products || "", quantity: e?.weight?.replace(" kg", "") || "", unit: "KG", expiry: "", cold: "Refrigerado" }]);
+  const updateProduct = (id: number, field: string, value: string) => setProducts(current => current.map(product => product.id === id ? { ...product, [field]: value } : product));
   return (
     <PrototypeForm>
       {module === "usuarios" ? (
@@ -458,7 +461,7 @@ function EntityForm({
           <Field label="Código *" defaultValue={e?.id} placeholder="ALM-007" />
           <Select label="Régimen térmico *" defaultValue={e?.regime || ""}>
             <option value="">Seleccionar</option>
-            {["Seco", "Refrigerado", "Congelado"].map((v) => (
+            {["Seco", "Refrigerado"].map((v) => (
               <option key={v}>{v}</option>
             ))}
           </Select>
@@ -494,7 +497,7 @@ function EntityForm({
           <Select
             label="Donación"
             value={receiptId}
-            onChange={(event) => setReceiptId(event.target.value)}
+            onChange={(event) => { setReceiptId(event.target.value); setVolunteerId(""); }}
           >
             {entities.recepciones.map((row) => (
               <option key={row.id} value={row.id}>
@@ -502,13 +505,15 @@ function EntityForm({
               </option>
             ))}
           </Select>
-          <Field label="Voluntario" value={receipt?.volunteer || ""} readOnly />
+          <Select label="Voluntario" value={selectedVolunteerId} onChange={event => setVolunteerId(event.target.value)}>
+            {entities.voluntarios.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
+          </Select>
           <Field
             label="Hora de llegada"
             value={receipt?.arrival || ""}
             readOnly
           />
-          <LinkButton to={`#/recepcion?id=${encodeURIComponent(receiptId)}`}>
+          <LinkButton to={`#/recepcion?id=${encodeURIComponent(receiptId)}&voluntario=${encodeURIComponent(selectedVolunteerId)}`}>
             Revisar recepción de ejemplo
           </LinkButton>
         </>
@@ -519,36 +524,24 @@ function EntityForm({
             defaultValue={e?.name}
             placeholder="Nombre del donante"
           />
-          <Field
-            label="Productos *"
-            defaultValue={e?.products}
-            placeholder="Ej. Lácteos y frutas"
-          />
-          <div className="form-row">
-            <Field
-              label="Cantidad / peso *"
-              defaultValue={e?.weight?.replace(" kg", "")}
-              type="number"
-              min="0"
-            />
-            <Select label="Unidad">
-              <option>KG</option>
-              <option>L</option>
-              <option>ML</option>
-              <option>G</option>
-            </Select>
-          </div>
-          <Field label="Fecha de vencimiento" type="date" />
-          <Select label="Cadena de frío">
-            <option>Refrigerado</option>
-            <option>No requiere</option>
-          </Select>
+          {products.map((product, index) => <fieldset className="donation-product" key={product.id}>
+            <legend>Producto {index + 1}</legend>
+            <Field label="Producto *" value={product.name} onChange={event => updateProduct(product.id, "name", event.target.value)} placeholder="Ej. Lácteos" />
+            <div className="form-row">
+              <Field label="Cantidad / peso *" type="number" min="0" value={product.quantity} onChange={event => updateProduct(product.id, "quantity", event.target.value)} />
+              <Select label="Unidad" value={product.unit} onChange={event => updateProduct(product.id, "unit", event.target.value)}>{["KG", "L", "ML", "G"].map(unit => <option key={unit}>{unit}</option>)}</Select>
+            </div>
+            <Field label="Fecha de vencimiento" type="date" value={product.expiry} onChange={event => updateProduct(product.id, "expiry", event.target.value)} />
+            <Select label="Cadena de frío" value={product.cold} onChange={event => updateProduct(product.id, "cold", event.target.value)}><option>Refrigerado</option><option>No requiere</option></Select>
+            <Photo label="Fotografía del producto" />
+            <button type="button" className="button secondary" disabled={products.length === 1} aria-label={`Quitar producto ${index + 1}`} onClick={() => setProducts(current => current.filter(item => item.id !== product.id))}>Quitar producto</button>
+          </fieldset>)}
+          <button type="button" className="button secondary" onClick={() => setProducts(current => [...current, { id: Math.max(...current.map(product => product.id)) + 1, name: "", quantity: "", unit: "KG", expiry: "", cold: "No requiere" }])}>Añadir otro producto</button>
           <div className="form-row">
             <Field label="Recogida desde" type="time" defaultValue="16:00" />
             <Field label="Hasta" type="time" defaultValue="18:00" />
           </div>
           <Field label="Ubicación" placeholder="Dirección de recogida" />
-          <Photo label="Fotografía del producto" />
         </>
       )}
       <p className="muted small">

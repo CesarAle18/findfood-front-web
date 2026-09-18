@@ -64,7 +64,6 @@ export const modules: Record<ModuleKey, ModuleConfig> = {
     singular: "postulante",
     columns: [
       ["name", "Nombre"],
-      ["city", "Ciudad"],
       ["vehicle", "Vehículo"],
       ["capacity", "Capacidad"],
       ["cold", "Refrigeración"],
@@ -72,8 +71,7 @@ export const modules: Record<ModuleKey, ModuleConfig> = {
       ["documents", "Documentación"],
       ["status", "Estado"],
     ],
-    filter: ["city", "Ciudad"],
-    secondaryFilter: ["vehicle", "Vehículo"],
+    filter: ["vehicle", "Vehículo"],
   },
   inventario: {
     title: "Inventario FEFO",

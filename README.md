@@ -47,3 +47,10 @@ Build incluye la comprobación TypeScript y genera dist. Las pruebas de renderiz
 ## Publicar más adelante
 
 `dist` es una salida estática. Las rutas por hash facilitan recargar enlaces sin reglas de reescritura. Esta entrega no publica el sitio ni actualiza GitHub. No desplegar como aplicación real con usuarios hasta integrar seguridad y backend.
+
+
+## Ajustes de formularios y navegación
+
+Nueva recepción permite seleccionar voluntario y conserva su identificador al revisar la recepción de ejemplo. Nueva donación admite añadir y quitar productos con datos independientes; ubicación y horario son compartidos. Los cambios son locales y no se guardan. Usuarios incluye el submenú Voluntarios pendientes. La configuración de paradas permite de 1 a 5; no incluye la pestaña decorativa Asignación.
+
+Se retiraron la tarjeta Alertas de capacidad, el filtro y columna Ciudad del listado de voluntarios y el enlace duplicado Ver detalle de postulantes. El selector de régimen de almacén ofrece Seco y Refrigerado.

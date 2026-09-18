@@ -74,6 +74,28 @@ try {
   );
   assert(noticeHtml.includes('href="#/recepcion?id=REC-1083"'));
   assert(noticeHtml.includes("Laura Gómez"));
+  const render = path => renderToStaticMarkup(React.createElement(App, { initialPath: path }));
+  assert(!render("/almacenes").includes("Alertas de capacidad"));
+  const warehouseForm = render("/almacenes?panel=nuevo");
+  assert(!warehouseForm.slice(warehouseForm.indexOf("<dialog")).includes('<option>Congelado</option>'));
+  const volunteerList = render("/voluntarios");
+  assert(!volunteerList.includes('scope="col">Ciudad'));
+  assert(!volunteerList.includes('aria-label="Ciudad"'));
+  assert(volunteerList.includes('aria-label="Submenú de usuarios"'));
+  const donationForm = render("/donaciones?panel=nuevo");
+  assert(donationForm.includes("Añadir otro producto"));
+  assert.equal((donationForm.match(/>Ubicación</g) || []).length, 1);
+  const pending = render("/pendientes");
+  assert(!pending.includes('>Ver detalle</a>'));
+  assert(pending.includes('aria-label="Ver detalle de'));
+  const settings = render("/configuracion");
+  assert(settings.includes('aria-label="Aumentar paradas" disabled=""'));
+  assert(!settings.includes('<span class="active">Asignación</span>'));
+  const receiptForm = render("/recepciones?panel=nuevo");
+  assert(/Voluntario<\/span><select/.test(receiptForm));
+  const { demoData } = require("../src/data/demo.ts");
+  const volunteer = demoData.entities.voluntarios[1];
+  assert(render(`/recepcion?id=REC-1083&voluntario=${volunteer.id}`).includes(`<b>${volunteer.name}</b>`));
   const invalid = errors.filter((e) =>
     /does not recognize|Invalid|Each child|cannot be a descendant/i.test(e),
   );

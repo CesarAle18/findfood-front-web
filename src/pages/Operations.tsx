@@ -349,7 +349,6 @@ export function Pending() {
             <div className="card-actions">
               <DemoButton>Aceptar</DemoButton>
               <DemoButton secondary>Rechazar</DemoButton>
-              <a href={href("/pendientes", "detalle", p.id)}>Ver detalle</a>
             </div>
           </Card>
         ))}
@@ -357,7 +356,7 @@ export function Pending() {
     </>
   );
 }
-export function Reception({ id }: { id: string | null }) {
+export function Reception({ id, volunteerId }: { id: string | null; volunteerId?: string | null }) {
   const { entities } = useData();
   const row = id
     ? entities.recepciones.find((r) => r.id === id)
@@ -374,7 +373,7 @@ export function Reception({ id }: { id: string | null }) {
         <div className="assignment-summary">
           <strong>{row.donation} · Ruta R-045</strong>
           <span>
-            Voluntario <b>{row.volunteer}</b>
+            Voluntario <b>{entities.voluntarios.find(person => person.id === volunteerId)?.name || row.volunteer}</b>
           </span>
           <span>
             Hora llegada <b>{row.arrival}</b>
@@ -480,9 +479,6 @@ export function Settings() {
   const total = weights.reduce((a, b) => a + b, 0);
   return (
     <>
-      <div className="tabs">
-        <span className="active">Asignación</span>
-      </div>
       <div className="two-column">
         <Card title="Criterios del motor de asignación">
           <p className="muted">
@@ -579,7 +575,8 @@ export function Settings() {
               <output>{stops}</output>
               <button
                 aria-label="Aumentar paradas"
-                onClick={() => setStops((n) => n + 1)}
+                disabled={stops >= 5}
+                onClick={() => setStops((n) => Math.min(5, n + 1))}
               >
                 +
               </button>
