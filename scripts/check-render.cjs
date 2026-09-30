@@ -96,6 +96,23 @@ try {
   const { demoData } = require("../src/data/demo.ts");
   const volunteer = demoData.entities.voluntarios[1];
   assert(render(`/recepcion?id=REC-1083&voluntario=${volunteer.id}`).includes(`<b>${volunteer.name}</b>`));
+  const donations = render("/donaciones");
+  assert(!donations.includes('href="#/donaciones?panel=nuevo"'));
+  assert.equal((donations.match(/class="avatar">AM/g) || []).length, 1);
+  assert(!donations.includes('class="bank"'));
+  assert(volunteerList.includes('href="#/pendientes"'));
+  const submenu = donations.split('aria-label="Submenú de usuarios"')[1].split('</div>')[0];
+  assert(submenu.includes('href="#/voluntarios"'));
+  assert(!submenu.includes('href="#/pendientes"'));
+  for (const row of demoData.entities.donaciones) {
+    assert(donations.includes(`href="#/asignaciones?id=${row.id}"`));
+    const assignment = render(`/asignaciones?id=${row.id}`);
+    for (const field of ['id', 'name', 'products', 'weight', 'expiry', 'urgency', 'status']) assert(assignment.includes(row[field]), `Assignment missing ${field} for ${row.id}`);
+    const other = demoData.entities.donaciones.find(item => item.id !== row.id);
+    assert(!assignment.includes(other.id));
+  }
+  assert(render('/asignaciones').includes('Selecciona una donación'));
+  assert(render('/asignaciones?id=missing').includes('Donación no encontrada'));
   const invalid = errors.filter((e) =>
     /does not recognize|Invalid|Each child|cannot be a descendant/i.test(e),
   );

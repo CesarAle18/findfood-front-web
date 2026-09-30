@@ -118,8 +118,8 @@ export function Management({ module }: { module: ModuleKey }) {
             </select>
           )}
           {module === "usuarios" && (
-            <LinkButton to="#/pendientes" secondary>
-              Voluntarios pendientes
+            <LinkButton to="#/voluntarios" secondary>
+              Lista de voluntarios
             </LinkButton>
           )}
           {module === "voluntarios" && (
@@ -127,10 +127,10 @@ export function Management({ module }: { module: ModuleKey }) {
               Ver pendientes
             </LinkButton>
           )}
-          {config.create && (
+          {config.create && module !== "donaciones" && (
             <LinkButton to={href("/" + module, "nuevo")}>
               +{" "}
-              {module === "donaciones" || module === "recepciones"
+              {module === "recepciones"
                 ? "Nueva"
                 : "Nuevo"}{" "}
               {config.singular}
@@ -172,6 +172,10 @@ export function Management({ module }: { module: ModuleKey }) {
                   ))}
                   <td>
                     <div className="row-actions">
+                      {module === "donaciones" && <>
+                        <a aria-label={`Asignar ${row.id}`} href={href("/asignaciones", undefined, row.id)}>Asignar</a>
+                        <span aria-hidden="true">·</span>
+                      </>}
                       <a
                         aria-label={`Ver ${row.id}`}
                         href={

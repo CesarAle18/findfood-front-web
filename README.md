@@ -54,3 +54,11 @@ Build incluye la comprobación TypeScript y genera dist. Las pruebas de renderiz
 Nueva recepción permite seleccionar voluntario y conserva su identificador al revisar la recepción de ejemplo. Nueva donación admite añadir y quitar productos con datos independientes; ubicación y horario son compartidos. Los cambios son locales y no se guardan. Usuarios incluye el submenú Voluntarios pendientes. La configuración de paradas permite de 1 a 5; no incluye la pestaña decorativa Asignación.
 
 Se retiraron la tarjeta Alertas de capacidad, el filtro y columna Ciudad del listado de voluntarios y el enlace duplicado Ver detalle de postulantes. El selector de régimen de almacén ofrece Seco y Refrigerado.
+
+## Cambios: donaciones y navegación
+- Donaciones: la acción Asignar abre `#/asignaciones?id=ID` y muestra los datos de esa fila. No aparece Nueva donación en el listado.
+- Asignaciones sin ID solicita elegir una donación; un ID inexistente muestra un mensaje y permite volver al listado. Candidatos y puntajes siguen siendo ilustrativos.
+- Un único AM en la parte superior izquierda de la cabecera, con su menú de cuenta. Se elimina el perfil inferior del sidebar.
+- Usuarios → Lista de voluntarios → Ver pendientes.
+
+Se conserva el alcance de frontend con navegación local, sin backend.

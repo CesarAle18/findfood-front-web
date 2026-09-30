@@ -1103,3 +1103,7 @@ progress::-webkit-progress-value {
 .sidebar nav .user-submenu a { font-size: 12px; min-height: 44px; }
 .donation-product { margin: 0; padding: 16px; min-width: 0; border: 1px solid var(--border); border-radius: 12px; display: grid; gap: 20px; }
 .donation-product legend { padding: 0 6px; font-weight: 600; }
+
+/* Menú de cuenta único al inicio de la cabecera. */
+.topbar > .account-menu { display: block; flex-shrink: 0; }
+.topbar > .account-menu > div { left: 0; right: auto; }

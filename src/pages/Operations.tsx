@@ -126,28 +126,34 @@ export function Dashboard() {
     </>
   );
 }
-export function Assignments() {
+export function Assignments({ id }: { id?: string | null }) {
+  const { entities } = useData();
+  const donation = id ? entities.donaciones.find(row => row.id === id) : undefined;
   const [selected, setSelected] = useState(0);
   const names = ["Carlos Ruiz", "Laura Gómez", "Andrés Peña", "Diana Rojas"];
+  if (!donation) return <Card title={id ? "Donación no encontrada" : "Selecciona una donación"}>
+    <p>{id ? "No se encontró la donación solicitada." : "Abre Donaciones y pulsa Asignar en la fila que quieres revisar."}</p>
+    <LinkButton to="#/donaciones">Ir a donaciones</LinkButton>
+  </Card>;
   return (
     <>
       <Card title="Donación seleccionada">
         <div className="assignment-summary">
-          <strong>DON-1048 · Supermercado La 14</strong>
+          <strong>{donation.id} · {donation.name}</strong>
           <span>
-            Peso estimado <b>45 kg</b>
+            Peso estimado <b>{donation.weight}</b>
           </span>
           <span>
-            Refrigeración <b>Requerida</b>
+            Productos <b>{donation.products}</b>
           </span>
-          <Badge>Urgente</Badge>
+          <span>Vencimiento <b>{donation.expiry}</b></span>
+          <Badge>{donation.urgency}</Badge>
+          <Badge>{donation.status}</Badge>
         </div>
       </Card>
       <div className="chips">
         {[
-          "Capacidad ≥ 45 kg",
-          "Refrigeración: Sí",
-          "Disponibilidad: 16:00–18:00",
+          `Capacidad ≥ ${donation.weight}`,
           "Verificado: Sí",
           "Cercanía ≤ radio",
         ].map((t) => (
@@ -158,7 +164,8 @@ export function Assignments() {
         ))}
       </div>
       <div className="two-column">
-        <Card title="Candidatos factibles">
+        <Card title="Candidatos de demostración">
+          <p className="muted">Estos candidatos y puntajes son ejemplos; no se ha ejecutado una asignación.</p>
           {names.map((name, i) => (
             <button
               key={name}
