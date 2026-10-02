@@ -203,6 +203,8 @@ export function Drawer({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  // Destino pendiente mientras se reproduce la animación de salida.
+  const [leavingTo, setLeavingTo] = useState<string | null>(null);
   useEffect(() => {
     const dialog = ref.current;
     const previous = document.activeElement as HTMLElement | null;
@@ -212,14 +214,56 @@ export function Drawer({
       previous?.focus();
     };
   }, []);
+  useEffect(() => {
+    // Al cambiar de detalle a edición el enlace pulsado desaparece; el foco vuelve al panel.
+    const dialog = ref.current;
+    if (dialog?.open && !dialog.contains(document.activeElement))
+      dialog.querySelector<HTMLElement>("a[href], button:not(:disabled)")?.focus();
+  }, [title]);
+  useEffect(() => {
+    if (!leavingTo) return;
+    // Respaldo por si animationend no llega (pestaña en segundo plano, etc.).
+    const timer = setTimeout(() => {
+      window.location.hash = leavingTo.slice(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [leavingTo]);
+  const leave = (to: string) => {
+    if (leavingTo) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+      window.location.hash = to.slice(1);
+    else setLeavingTo(to);
+  };
   return (
     <dialog
       ref={ref}
-      className="drawer"
+      className={`drawer ${leavingTo ? "closing" : ""}`}
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
-        window.location.hash = close.slice(1);
+        leave(close);
+      }}
+      onClick={(event) => {
+        const to = (event.target as Element)
+          .closest("a")
+          ?.getAttribute("href");
+        if (
+          !to?.startsWith("#") ||
+          event.button !== 0 ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          event.altKey
+        )
+          return;
+        // Los enlaces a otro panel mantienen el drawer abierto y solo cambian su contenido.
+        if (new URLSearchParams(to.split("?")[1]).has("panel")) return;
+        event.preventDefault();
+        leave(to);
+      }}
+      onAnimationEnd={(event) => {
+        if (leavingTo && event.animationName === "drawer-out")
+          window.location.hash = leavingTo.slice(1);
       }}
     >
       <header>
@@ -228,7 +272,9 @@ export function Drawer({
           <Icon name="close" />
         </a>
       </header>
-      <div className="drawer-body">{children}</div>
+      <div className="drawer-body" key={title}>
+        {children}
+      </div>
       <footer>
         {footer || (
           <LinkButton to={close} secondary>

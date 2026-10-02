@@ -3,8 +3,6 @@
   min-height: 100vh;
   padding: 24px;
   gap: 26px;
-  max-width: 1920px;
-  margin: auto;
 }
 .sidebar {
   width: 220px;
@@ -52,6 +50,7 @@
   border-radius: 9px;
   color: var(--muted);
   font-size: 13px;
+  transition: var(--transition-colors);
 }
 .sidebar nav a:hover {
   background: #f4f8f5;
@@ -165,6 +164,16 @@
   gap: 18px;
   font-size: 12px;
 }
+.account-menu[open] > div {
+  transform-origin: top right;
+  animation: dropdown-in var(--duration-base) var(--ease-out);
+}
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
 .account-menu a {
   display: flex;
   align-items: center;
@@ -174,6 +183,7 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  animation: rise-in var(--duration-base) var(--ease-out);
 }
 .app-footer {
   padding: 28px 0 4px;
@@ -433,6 +443,7 @@ tbody tr:last-child td {
   color: var(--ink);
   margin: 6px 0;
   border: 1px solid transparent;
+  transition: var(--transition-colors);
 }
 .candidate.selected,
 .route-choice.selected {
@@ -508,6 +519,7 @@ progress::-webkit-progress-value {
   padding: 15px;
   margin: 10px 0;
   color: var(--ink);
+  transition: var(--transition-colors);
 }
 .route-choice strong {
   font-size: 13px;
@@ -616,6 +628,7 @@ progress::-webkit-progress-value {
   padding: 15px;
   font-size: 12px;
   border-radius: 8px;
+  transition: var(--transition-colors);
 }
 .total.invalid {
   background: #fff3d8;
@@ -671,6 +684,7 @@ progress::-webkit-progress-value {
   background: none;
   border-radius: 6px;
   color: var(--muted);
+  transition: var(--transition-colors);
 }
 .tabs .active {
   background: #fff;
@@ -698,6 +712,34 @@ progress::-webkit-progress-value {
 .drawer::backdrop {
   background: #17332a45;
 }
+/* Valores de respaldo: algunos navegadores no heredan variables en ::backdrop. */
+.drawer[open] {
+  animation: drawer-in var(--duration-panel) var(--ease-out);
+}
+.drawer[open]::backdrop {
+  animation: fade-in var(--duration-panel, 240ms)
+    var(--ease-out, cubic-bezier(0.2, 0, 0, 1));
+}
+.drawer.closing {
+  animation: drawer-out var(--duration-exit) var(--ease-in) forwards;
+  pointer-events: none;
+}
+.drawer.closing::backdrop {
+  animation: fade-out var(--duration-exit, 160ms)
+    var(--ease-in, cubic-bezier(0.4, 0, 1, 1)) forwards;
+}
+@keyframes drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+@keyframes drawer-out {
+  to {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
 .drawer > header {
   display: flex;
   justify-content: space-between;
@@ -718,6 +760,7 @@ progress::-webkit-progress-value {
   gap: 24px;
   scrollbar-width: thin;
   scrollbar-color: #c3d2c9 white;
+  animation: fade-in var(--duration-base) var(--ease-out);
 }
 .drawer > footer {
   display: flex;
@@ -792,6 +835,7 @@ progress::-webkit-progress-value {
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 40px;
+  animation: rise-in var(--duration-base) var(--ease-out);
 }
 .auth-mark {
   display: flex;
@@ -865,8 +909,8 @@ progress::-webkit-progress-value {
   top: 12px;
 }
 @media (min-width: 1600px) {
-  .main-content {
-    max-width: 1550px;
+  .sidebar {
+    width: 240px;
   }
   .page-heading h1 {
     font-size: 30px;
@@ -1093,16 +1137,62 @@ progress::-webkit-progress-value {
 @media (max-width: 960px) {
   .sidebar {
     visibility: hidden;
+    /* Al cerrar, la visibilidad cambia cuando termina el desplazamiento. */
+    transition:
+      transform var(--duration-exit) var(--ease-in),
+      visibility 0s linear var(--duration-exit);
   }
   .sidebar.open {
     visibility: visible;
+    transition:
+      transform var(--duration-panel) var(--ease-out),
+      visibility 0s;
+  }
+  .sidebar-scrim {
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--duration-exit) var(--ease-in),
+      visibility 0s linear var(--duration-exit);
+  }
+  .sidebar-scrim.open {
+    opacity: 1;
+    visibility: visible;
+    transition:
+      opacity var(--duration-panel) var(--ease-out),
+      visibility 0s;
   }
 }
 
+/* Acordeón: grid 0fr → 1fr; el margen negativo compensa el gap del nav al cerrar. */
+.user-submenu {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: -6px;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--duration-base) var(--ease-standard),
+    margin-top var(--duration-base) var(--ease-standard),
+    opacity var(--duration-base) var(--ease-standard);
+}
+.user-submenu.open {
+  grid-template-rows: 1fr;
+  margin-top: 0;
+  opacity: 1;
+}
+.user-submenu > div {
+  min-height: 0;
+  overflow: hidden;
+}
+/* El contenedor recorta: el foco se dibuja hacia dentro. */
+.user-submenu a:focus-visible {
+  outline-offset: -3px;
+}
 .user-submenu { padding-left: 28px; }
 .sidebar nav .user-submenu a { font-size: 12px; min-height: 44px; }
 .donation-product { margin: 0; padding: 16px; min-width: 0; border: 1px solid var(--border); border-radius: 12px; display: grid; gap: 20px; }
 .donation-product legend { padding: 0 6px; font-weight: 600; }
+.donation-product + .donation-product { animation: rise-in var(--duration-base) var(--ease-out); }
 
 /* Menú de cuenta único al inicio de la cabecera. */
 .topbar > .account-menu { display: block; flex-shrink: 0; }

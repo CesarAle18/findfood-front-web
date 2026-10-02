@@ -161,7 +161,12 @@ export default function App({
     route.pathname === "/login" ||
     route.pathname === "/recuperar-contrasena"
   ) {
-    return <Auth forgot={route.pathname === "/recuperar-contrasena"} />;
+    return (
+      <Auth
+        key={route.pathname}
+        forgot={route.pathname === "/recuperar-contrasena"}
+      />
+    );
   }
 
   const panel = route.params.get("panel");
@@ -287,25 +292,28 @@ export default function App({
                     <span>{label}</span>
                   </a>
 
-                  {isUsers && usersOpen && (
+                  {isUsers && (
                     <div
                       id="users-submenu"
-                      className="user-submenu"
+                      className={`user-submenu ${usersOpen ? "open" : ""}`}
                       role="group"
                       aria-label="Submenú de usuarios"
+                      inert={!usersOpen}
                     >
-                      <a
-                        href="#/voluntarios"
-                        className={volunteersActive ? "active" : ""}
-                        aria-current={
-                          route.pathname === "/voluntarios"
-                            ? "page"
-                            : undefined
-                        }
-                        onClick={() => setMenu(false)}
-                      >
-                        Lista de voluntarios
-                      </a>
+                      <div>
+                        <a
+                          href="#/voluntarios"
+                          className={volunteersActive ? "active" : ""}
+                          aria-current={
+                            route.pathname === "/voluntarios"
+                              ? "page"
+                              : undefined
+                          }
+                          onClick={() => setMenu(false)}
+                        >
+                          Lista de voluntarios
+                        </a>
+                      </div>
                     </div>
                   )}
                 </Fragment>
@@ -325,13 +333,11 @@ export default function App({
           </div>
         </aside>
 
-        {menu && (
-          <button
-            className="sidebar-scrim"
-            aria-label="Cerrar menú"
-            onClick={() => setMenu(false)}
-          />
-        )}
+        <button
+          className={`sidebar-scrim ${menu ? "open" : ""}`}
+          aria-label="Cerrar menú"
+          onClick={() => setMenu(false)}
+        />
 
         <main
           id="main-content"
@@ -384,7 +390,9 @@ export default function App({
           </div>
         </header>
 
-          <div className="page-content">{content}</div>
+          <div className="page-content" key={route.pathname}>
+            {content}
+          </div>
 
           <footer className="app-footer">
             Find Food · Banco de alimentos
@@ -397,7 +405,7 @@ export default function App({
         <NoticePanel close={closeNoticeHref} />
       ) : panel && drawerModule ? (
         <EntityPanel
-          key={route.path}
+          key={drawerModule}
           module={drawerModule}
           panel={panel}
           id={id}

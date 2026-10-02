@@ -301,7 +301,7 @@ export function EntityPanel({
       }
     >
       {editing ? (
-        <EntityForm module={module} entity={entity} />
+        <EntityForm key={`${panel}-${id}`} module={module} entity={entity} />
       ) : (
         entity && <EntityDetails module={module} entity={entity} />
       )}

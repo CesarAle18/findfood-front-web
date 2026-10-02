@@ -104,13 +104,25 @@ Los títulos de página se adaptan a 30px desde 1600px, 23px hasta 1200px y 20px
 
 ## Layout
 
-Referencia de escritorio: 1440 × 1024. El contenedor alcanza 1920px, con margen exterior de 24px, separación de 26px y sidebar de 220px. Los contenidos usan tarjetas, métricas en cuatro columnas y regiones de dos columnas según la tarea.
+Referencia de escritorio: 1440 × 1024. El contenedor ocupa todo el ancho del viewport (sin tope, también en 1440p y ultrawide), con margen exterior de 24px, separación de 26px y sidebar de 220px (240px desde 1600px). Los contenidos usan tarjetas, métricas en cuatro columnas y regiones de dos columnas según la tarea.
 
 Hasta 1200px se compactan separaciones y sidebar. Hasta 960px la navegación se abre como panel superpuesto y las regiones principales de dos columnas pasan a una. Hasta 650px las métricas quedan en dos columnas y dashboard, galería y postulantes en una; el margen exterior baja a 12px. Las tablas conservan desplazamiento horizontal. Los pares de campos permanecen en dos columnas, con separación reducida en móvil.
 
 ## Elevation & Depth
 
 Las tarjetas son planas: fondo, borde y contraste tonal definen su posición. El panel lateral utiliza la única sombra estructural (`-12px 0 40px #17332a14`) y un fondo modal translúcido (`#17332a45`). La navegación móvil usa su propio velo (`#17332a50`).
+
+## Motion
+
+El movimiento elimina cambios bruscos; no decora. Tokens en `:root` de `src/index.css`:
+
+- `--duration-fast` 150 ms: hover y cambios de estado (`--transition-colors`).
+- `--duration-base` 200 ms: desplegable de cuenta, acordeón de Usuarios, fundido de contenido de página, estado vacío y producto añadido.
+- `--duration-panel` 240 ms: entrada del drawer y de la sidebar móvil.
+- `--duration-exit` 160 ms: todas las salidas.
+- Curvas: `--ease-out` para entradas, `--ease-in` para salidas, `--ease-standard` para cambios de estado.
+
+Solo se animan `transform` y `opacity`; la única excepción es el acordeón de Usuarios (`grid-template-rows`), por su tamaño mínimo. Las animaciones se disparan una vez, sin `will-change` permanente. El drawer entra desplazándose 32px con fundido del velo; al cerrarse con X, Cerrar, Cancelar, Escape o un enlace interno reproduce la salida y luego navega; el botón atrás del navegador lo cierra al instante. Pasar de detalle a edición mantiene el drawer abierto y solo funde el cuerpo. `prefers-reduced-motion: reduce` desactiva todo y el drawer navega sin esperar.
 
 ## Shapes
 
@@ -119,7 +131,7 @@ Campos y controles icónicos suavemente redondeados; botones ligeramente más cu
 ## Components
 
 ### Buttons
-Acción primaria verde; secundaria blanca con borde suave; variante de peligro con texto rojo y borde rosado. Altura mínima de 42px. El foco visible tiene contorno de 3px y separación de 3px. La transición de fondo dura 0.15s. Los botones de operación deshabilitados usan opacidad 0.68 y cursor de indisponibilidad.
+Acción primaria verde; secundaria blanca con borde suave; variante de peligro con texto rojo y borde rosado. Altura mínima de 42px. El foco visible tiene contorno de 3px y separación de 3px. Fondo, borde y color transicionan con `--transition-colors` (150 ms). Los botones de operación deshabilitados usan opacidad 0.68 y cursor de indisponibilidad.
 
 ### Chips
 Etiquetas de estado con relleno de 5px 10px, texto semibold de 10px y forma de cápsula. El color siempre acompaña la etiqueta escrita.
