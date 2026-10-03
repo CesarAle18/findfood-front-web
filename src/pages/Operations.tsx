@@ -643,7 +643,9 @@ export function Password({ recovery = false }: { recovery?: boolean }) {
             <LinkButton to={recovery ? "#/login" : "#/inicio"} secondary>
               Cancelar
             </LinkButton>
-            <DemoButton>Actualizar contraseña</DemoButton>
+            <LinkButton to={recovery ? "#/login" : "#/inicio"}>
+              Actualizar contraseña
+            </LinkButton>
           </div>
         </div>
       </Card>

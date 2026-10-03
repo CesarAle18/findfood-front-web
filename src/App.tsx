@@ -168,6 +168,29 @@ export default function App({
       />
     );
   }
+  if (route.pathname === "/restablecer-contrasena") {
+  return (
+    <main className="auth-page">      
+
+      <section
+        style={{
+          width: "100%",
+          maxWidth: 960,
+          margin: "0 auto",
+          padding: "0 24px 32px",
+          boxSizing: "border-box",
+        }}
+      >
+        <div className="page-heading" style={{ marginBottom: 24 }}>
+          <h1>Cambio de contraseña</h1>
+          <p>Define una nueva contraseña para recuperar tu acceso.</p>
+        </div>
+
+        <Password recovery />
+      </section>
+    </main>
+  );
+}
 
   const panel = route.params.get("panel");
   const id = route.params.get("id");
@@ -216,9 +239,8 @@ export default function App({
     />
   ) : route.pathname === "/configuracion" ? (
     <Settings />
-  ) : route.pathname === "/cambiar-contrasena" ||
-    route.pathname === "/restablecer-contrasena" ? (
-    <Password recovery={route.pathname === "/restablecer-contrasena"} />
+  ) : route.pathname === "/cambiar-contrasena" ? (
+  <Password />
   ) : route.pathname === "/pantallas" ? (
     <Card>
       <div className="gallery">

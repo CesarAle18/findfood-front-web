@@ -1,10 +1,8 @@
-import { Brand, DemoButton, Field, Icon, LinkButton } from "../components/ui";
+import {Field, Icon, LinkButton } from "../components/ui";
 export function Auth({ forgot = false }: { forgot?: boolean }) {
   return (
     <main className="auth-page">
-      <div className="auth-brand">
-        <Brand />
-      </div>
+    
       <section className="auth-card">
         <div className="auth-mark">
           {forgot ? (
@@ -24,7 +22,7 @@ export function Auth({ forgot = false }: { forgot?: boolean }) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!forgot) window.location.hash = "/inicio";
+            window.location.hash = forgot ? "/restablecer-contrasena" : "/inicio";
           }}
           className="form-stack"
         >
@@ -56,7 +54,9 @@ export function Auth({ forgot = false }: { forgot?: boolean }) {
           )}
           {forgot && (
             <>
-              <DemoButton>Enviar instrucciones</DemoButton>
+              <button className="button" type="submit">
+                Enviar instrucciones
+              </button>
               <LinkButton to="#/login" secondary>
                 Volver al inicio de sesión
               </LinkButton>
