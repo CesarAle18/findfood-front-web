@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-17T01:58:21.150193+00:00",
+  "title": "Design System: Find Food web",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "drawer",
+        "value": "-12px 0 40px #17332a14",
+        "purpose": "Separación estructural del panel modal."
+      }
+    ],
+    "motion": [
+      {
+        "name": "button-background",
+        "value": "background 0.15s",
+        "purpose": "Respuesta al hover."
+      },
+      {
+        "name": "spinner",
+        "value": "spin 0.8s linear infinite",
+        "purpose": "Indicador de carga; se desactiva con movimiento reducido."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile-max",
+        "value": "650px"
+      },
+      {
+        "name": "sidebar-max",
+        "value": "960px"
+      },
+      {
+        "name": "compact-max",
+        "value": "1200px"
+      },
+      {
+        "name": "wide-min",
+        "value": "1600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Acción primaria",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción primaria",
+      "html": "<button class=\"ds-button-primary\">Ver detalle</button>",
+      "css": ".ds-button-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 18px;border:1px solid var(--green,#1f7a5a);border-radius:9px;font:600 12px/1.4 Inter,Arial,sans-serif;transition:background .15s;cursor:pointer;background:var(--green,#1f7a5a);color:#fff;}.ds-button-primary:hover:not(:disabled){background:#176246;}.ds-button-primary:focus-visible{outline:3px solid var(--focus,#8dcbb3);outline-offset:3px}.ds-button-primary:disabled{opacity:.68;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-button-primary{transition:none}}"
+    },
+    {
+      "name": "Acción secundaria",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acción secundaria",
+      "html": "<button class=\"ds-button-secondary\">Ver detalle</button>",
+      "css": ".ds-button-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 18px;border:1px solid var(--green,#1f7a5a);border-radius:9px;font:600 12px/1.4 Inter,Arial,sans-serif;transition:background .15s;cursor:pointer;background:#fff;color:var(--green,#1f7a5a);border-color:var(--border,#dfe8e2);}.ds-button-secondary:hover:not(:disabled){background:var(--soft,#e9f7f1);}.ds-button-secondary:focus-visible{outline:3px solid var(--focus,#8dcbb3);outline-offset:3px}.ds-button-secondary:disabled{opacity:.68;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-button-secondary{transition:none}}"
+    },
+    {
+      "name": "Operación de peligro deshabilitada",
+      "kind": "button",
+      "description": "Operación de peligro deshabilitada",
+      "html": "<button class=\"ds-button-danger\" disabled>Eliminar</button>",
+      "css": ".ds-button-danger{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:11px 18px;border:1px solid var(--green,#1f7a5a);border-radius:9px;font:600 12px/1.4 Inter,Arial,sans-serif;transition:background .15s;cursor:pointer;color:#a6453d;background:#fff;border-color:#e9c8c3;}.ds-button-danger:hover:not(:disabled){}.ds-button-danger:focus-visible{outline:3px solid var(--focus,#8dcbb3);outline-offset:3px}.ds-button-danger:disabled{opacity:.68;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-button-danger{transition:none}}"
+    },
+    {
+      "name": "Campo",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Etiqueta asociada y campo editable.",
+      "html": "<label class=\"ds-field\">Nombre<input placeholder=\"Nombre de ejemplo\"></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:8px;font:600 12px Inter,Arial,sans-serif;color:var(--ink,#17332a)}.ds-field input{min-height:42px;border:1px solid var(--border,#dfe8e2);border-radius:8px;background:#fbfdfc;padding:10px 12px;color:var(--ink,#17332a);font:400 12px Inter,Arial,sans-serif}.ds-field input:focus-visible{outline:3px solid var(--focus,#8dcbb3);outline-offset:3px}"
+    },
+    {
+      "name": "Tarjeta",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Contenedor plano de información.",
+      "html": "<section class=\"ds-card\"><h2>Donaciones</h2><p>Resumen de ejemplo</p></section>",
+      "css": ".ds-card{background:#fff;border:1px solid var(--border,#dfe8e2);border-radius:14px;padding:22px;color:var(--ink,#17332a);font-family:Inter,Arial,sans-serif}.ds-card h2{margin:0;font-size:16px;line-height:1.5}.ds-card p{color:var(--muted,#66756f);font-size:12px;line-height:1.6}"
+    },
+    {
+      "name": "Estado",
+      "kind": "chip",
+      "description": "Estado positivo con etiqueta visible.",
+      "html": "<span class=\"ds-badge\">Activo</span>",
+      "css": ".ds-badge{display:inline-flex;border-radius:999px;font:600 10px/1.5 Inter,Arial,sans-serif;padding:5px 10px;white-space:nowrap;color:#1f7052;background:#e9f6ef}"
+    },
+    {
+      "name": "Navegación",
+      "kind": "nav",
+      "description": "Enlace activo de sidebar.",
+      "html": "<nav><a class=\"ds-nav\" href=\"#\" aria-current=\"page\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m3 10 9-7 9 7v10H3zM9 20v-7h6v7\"/></svg>Inicio</a></nav>",
+      "css": ".ds-nav{display:flex;gap:12px;align-items:center;padding:12px;border-radius:9px;background:var(--soft,#e9f7f1);color:var(--green,#1f7a5a);font:600 13px Inter,Arial,sans-serif;text-decoration:none}.ds-nav:hover{background:#f4f8f5}.ds-nav:focus-visible{outline:3px solid var(--focus,#8dcbb3);outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Operación Find Food",
+    "overview": "La dirección fijada por el Figma mantiene verde, Inter, logotipo original, sidebar blanca, tablas de gestión y paneles laterales. El sistema usa superficies claras y densidad compacta para consultar registros y recorrer operaciones.\n\nDocumento extraído de `src/index.css`, `src/App.css` y `src/components/ui.tsx`. La fuente comprende 24 marcos web y 23 entradas de galería; recepción comparte implementación entre dos variaciones. La revisión es de fuente: el navegador remoto no pudo acceder a localhost y no se ha validado fidelidad visual.",
+    "keyCharacteristics": [
+      "Identidad verde e Inter local.",
+      "Superficies blancas delimitadas por bordes suaves.",
+      "Tablas compactas y detalle en panel lateral."
+    ],
+    "rules": [],
+    "dos": [
+      "**Do** reutilizar los tokens verdes, Inter y el logotipo original.",
+      "**Do** conservar etiquetas, foco visible y texto en los estados.",
+      "**Do** mantener tablas desplazables y detalle modal adaptable al viewport."
+    ],
+    "donts": [
+      "**Don't** introducir una nueva identidad visual en las pantallas restantes.",
+      "**Don't** presentar acciones deshabilitadas como operaciones realizadas.",
+      "**Don't** afirmar validación visual o fidelidad píxel a píxel sin revisar el renderizado."
+    ]
+  }
+}

@@ -1,122 +1,514 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { readPaths } from "./integration/read-paths";
+import {
+  ReadScreen,
+  NotificationsRead,
+  LiveBell,
+} from "./integration/ReadViews";
+import { useSession } from "./integration/session-context";
+import { UsersLive } from "./integration/UsersLive";
+import { DashboardLive } from "./integration/DashboardLive";
+import { ProfileLive } from "./integration/ProfileLive";
+import { roleLabels } from "./integration/contracts";
+import { Fragment, useEffect, useState } from "react";
+import { Brand, Card, Icon, NoticePanel } from "./components/ui";
+import { Management, EntityPanel } from "./pages/Management";
+import {
+  Assignments,
+  Dashboard,
+  Password,
+  Pending,
+  Reception,
+  Routes,
+  Settings,
+} from "./pages/Operations";
+import { Auth } from "./pages/Auth";
+import { DataContext } from "./state/data-context";
+import { useRoute } from "./state/navigation";
+import type { ModuleKey, WebData } from "./domain/models";
+import { demoData } from "./data/demo";
+import { demoRepository, type WebRepository } from "./services/web-repository";
+import { modules } from "./data/modules";
+import { screens } from "./data/screens";
+import "./App.css";
 
-function App() {
-  const [count, setCount] = useState(0)
+const navigation = [
+  ["/inicio", "Inicio", "home"],
+  ["/donaciones", "Donaciones", "box"],
+  ["/rutas", "Rutas", "route"],
+  ["/recepciones", "Recepción", "truck"],
+  ["/inventario", "Inventario", "box"],
+  ["/almacenes", "Almacenes", "storage"],
+  ["/usuarios", "Usuarios", "users"],
+  ["/reportes", "Reportes", "chart"],
+  ["/configuracion", "Configuración", "settings"],
+];
+
+const headings: Record<string, [string, string]> = {
+  "/login": ["Inicio de sesión", ""],
+  "/perfil": ["Mi perfil", "Consulta y actualiza los datos de tu cuenta."],
+  "/recuperar-contrasena": ["Recuperar contraseña", ""],
+  "/inicio": [
+    "Dashboard operativo",
+    "Visión en tiempo real de donaciones, rutas e inventario.",
+  ],
+  "/asignaciones": [
+    "Motor de asignación",
+    "Candidatos ordenados por filtros duros y puntaje multicriterio.",
+  ],
+  "/rutas": [
+    "Rutas y seguimiento",
+    "Monitorea recorridos, paradas y tiempos estimados.",
+  ],
+  "/pendientes": [
+    "Pendientes por postulantes",
+    "Solicitudes de voluntariado que requieren decisión.",
+  ],
+  "/recepcion": [
+    "Recepción de donaciones",
+    "Registra aceptación total, parcial o rechazo y genera lotes de inventario.",
+  ],
+  "/configuracion": [
+    "Configuración",
+    "Parámetros del motor de asignación y límites operativos.",
+  ],
+  "/cambiar-contrasena": [
+    "Cambio de contraseña",
+    "Actualiza tu contraseña de forma segura.",
+  ],
+  "/restablecer-contrasena": [
+    "Cambio de contraseña",
+    "Actualiza tu contraseña de forma segura.",
+  ],
+  "/pantallas": [
+    "Pantallas del diseño",
+    "Explora los módulos y paneles de Find Food.",
+  ],
+};
+
+export default function App({
+  initialPath,
+  repository = demoRepository,
+}: {
+  initialPath?: string;
+  repository?: WebRepository;
+}) {
+  const route = useRoute(initialPath);
+  const auth = useSession();
+  const [accountError, setAccountError] = useState("");
+  const connectedPage = [
+    "/usuarios",
+    "/inicio",
+    "/perfil",
+    "/cambiar-contrasena",
+    ...readPaths,
+  ].includes(route.pathname);
+
+  const [menu, setMenu] = useState(false);
+
+  const [usersOpen, setUsersOpen] = useState(
+    ["/usuarios", "/voluntarios", "/pendientes"].includes(route.pathname),
+  );
+
+  const [data, setData] = useState<WebData | null>(
+    repository === demoRepository ? demoData : null,
+  );
+
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    repository
+      .load(controller.signal)
+      .then((value) => {
+        if (!controller.signal.aborted) {
+          setData(value);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setError(true);
+        }
+      });
+
+    return () => controller.abort();
+  }, [repository, attempt]);
+
+  const key = route.pathname.slice(1) as ModuleKey;
+  const config = modules[key];
+
+  const heading =
+    auth && route.pathname === "/reportes"
+      ? [
+          "Reportes",
+          "Consulta los indicadores de donaciones, asignación e inventario.",
+        ]
+      : config
+        ? [config.title, config.description]
+        : headings[route.pathname] || [
+            "Página no encontrada",
+            "El enlace no corresponde a una pantalla disponible.",
+          ];
+
+  const title = heading[0];
+
+  useEffect(() => {
+    document.title = `${title} · Find Food`;
+  }, [title]);
+
+  if (!data) {
+    return (
+      <main className="loading" role="status">
+        {error ? (
+          <>
+            <h1>No fue posible cargar la información</h1>
+
+            <button
+              className="button"
+              onClick={() => {
+                setError(false);
+                setAttempt((n) => n + 1);
+              }}
+            >
+              Reintentar
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="spinner" />
+            <p>Cargando Find Food…</p>
+          </>
+        )}
+      </main>
+    );
+  }
+
+  if (
+    route.pathname === "/login" ||
+    route.pathname === "/recuperar-contrasena"
+  ) {
+    return (
+      <Auth
+        key={route.pathname}
+        forgot={route.pathname === "/recuperar-contrasena"}
+      />
+    );
+  }
+  if (route.pathname === "/restablecer-contrasena") {
+    return (
+      <main className="auth-page">
+        <section
+          style={{
+            width: "100%",
+            maxWidth: 960,
+            margin: "0 auto",
+            padding: "0 24px 32px",
+            boxSizing: "border-box",
+          }}
+        >
+          <div className="page-heading" style={{ marginBottom: 24 }}>
+            <h1>Cambio de contraseña</h1>
+            <p>Define una nueva contraseña para recuperar tu acceso.</p>
+          </div>
+
+          <Password recovery />
+        </section>
+      </main>
+    );
+  }
+
+  const panel = route.params.get("panel");
+  const id = route.params.get("id");
+
+  const noticeParams = new URLSearchParams(route.params);
+  noticeParams.set("panel", "notificaciones");
+
+  const noticeHref = "#" + route.pathname + "?" + noticeParams.toString();
+
+  const closeParams = new URLSearchParams(route.params);
+  closeParams.delete("panel");
+
+  const closeNoticeHref =
+    "#" +
+    route.pathname +
+    (closeParams.size ? "?" + closeParams.toString() : "");
+
+  const drawerModule =
+    route.pathname === "/pendientes" ? "voluntarios" : config ? key : null;
+
+  const volunteersActive = ["/voluntarios", "/pendientes"].includes(
+    route.pathname,
+  );
+
+  const content =
+    auth && route.pathname === "/usuarios" ? (
+      <UsersLive />
+    ) : auth && route.pathname === "/inicio" ? (
+      <DashboardLive />
+    ) : auth && route.pathname === "/perfil" ? (
+      <ProfileLive key={auth.profile?.id} />
+    ) : auth && readPaths.includes(route.pathname) ? (
+      <ReadScreen key={route.pathname} path={route.pathname} id={id} />
+    ) : config ? (
+      <Management key={key} module={key} />
+    ) : route.pathname === "/inicio" ? (
+      <Dashboard />
+    ) : route.pathname === "/asignaciones" ? (
+      <Assignments key={id} id={id} />
+    ) : route.pathname === "/rutas" ? (
+      <Routes />
+    ) : route.pathname === "/pendientes" ? (
+      <Pending />
+    ) : route.pathname === "/recepcion" ? (
+      <Reception
+        key={id}
+        id={id}
+        volunteerId={route.params.get("voluntario")}
+      />
+    ) : route.pathname === "/configuracion" ? (
+      <Settings />
+    ) : route.pathname === "/cambiar-contrasena" ? (
+      <Password />
+    ) : route.pathname === "/pantallas" ? (
+      <Card>
+        <div className="gallery">
+          {screens.map(([label, to]) => (
+            <a key={label} href={"#" + to}>
+              <span>{label}</span>
+              <Icon name="arrow" />
+            </a>
+          ))}
+        </div>
+      </Card>
+    ) : (
+      <Card>
+        <p>Selecciona un módulo del menú o vuelve al inicio.</p>
+
+        <a href="#/inicio" className="button">
+          Volver al inicio
+        </a>
+      </Card>
+    );
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
+    <DataContext.Provider value={data}>
+      <a
+        className="skip-link"
+        href="#main-content"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById("main-content")?.focus();
+        }}
+      >
+        Saltar al contenido
+      </a>
+
+      <div className="app-shell">
+        <aside className={`sidebar ${menu ? "open" : ""}`}>
+          <Brand />
+
+          <nav aria-label="Navegación principal">
+            {navigation.map(([path, label, icon]) => {
+              const isUsers = path === "/usuarios";
+
+              const active =
+                route.pathname === path ||
+                (path === "/recepciones" && route.pathname === "/recepcion") ||
+                (path === "/donaciones" && route.pathname === "/asignaciones");
+
+              return (
+                <Fragment key={path}>
+                  <a
+                    href={"#" + path}
+                    className={active ? "active" : ""}
+                    aria-current={route.pathname === path ? "page" : undefined}
+                    aria-expanded={isUsers ? usersOpen : undefined}
+                    aria-controls={isUsers ? "users-submenu" : undefined}
+                    onClick={() => {
+                      if (isUsers) {
+                        setUsersOpen((open) => !open);
+                      } else {
+                        setMenu(false);
+                      }
+                    }}
+                  >
+                    <Icon name={icon} />
+                    <span>{label}</span>
+                  </a>
+
+                  {isUsers && (
+                    <div
+                      id="users-submenu"
+                      className={`user-submenu ${usersOpen ? "open" : ""}`}
+                      role="group"
+                      aria-label="Submenú de usuarios"
+                      inert={!usersOpen}
+                    >
+                      <div>
+                        <a
+                          href="#/voluntarios"
+                          className={volunteersActive ? "active" : ""}
+                          aria-current={
+                            route.pathname === "/voluntarios"
+                              ? "page"
+                              : undefined
+                          }
+                          onClick={() => setMenu(false)}
+                        >
+                          Lista de voluntarios
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </Fragment>
+              );
+            })}
+          </nav>
+
+          <div className="sidebar-bottom">
+            <span className="demo-pill">
+              {auth ? "Conexión API activa" : "Datos de demostración"}
+            </span>
+          </div>
+        </aside>
+
         <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+          className={`sidebar-scrim ${menu ? "open" : ""}`}
+          aria-label="Cerrar menú"
+          onClick={() => setMenu(false)}
+        />
 
-      <div className="ticks"></div>
+        <main id="main-content" className="main-content" tabIndex={-1}>
+          <header className="topbar">
+            <button
+              className="icon-button mobile-menu"
+              aria-label="Abrir menú"
+              aria-expanded={menu}
+              onClick={() => setMenu((open) => !open)}
+            >
+              <Icon name="menu" />
+            </button>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+            <div className="page-heading">
+              <h1>{heading[0]}</h1>
+              <p>{heading[1]}</p>
+            </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+            <div className="top-actions">
+              {auth ? (
+                <LiveBell href={noticeHref} />
+              ) : (
+                <a
+                  className="notification-button"
+                  href={noticeHref}
+                  aria-label="Abrir notificaciones, 3 sin leer"
+                >
+                  <Icon name="bell" />
+                  <span>3</span>
+                </a>
+              )}
+
+              <details className="account-menu">
+                <summary aria-label="Menú de cuenta">
+                  <span className="avatar">
+                    {auth
+                      ? [auth.profile?.nombres[0], auth.profile?.apellidos?.[0]]
+                          .filter(Boolean)
+                          .join("")
+                          .toUpperCase()
+                      : "AM"}
+                  </span>
+                </summary>
+
+                <div>
+                  <strong>
+                    {auth ? auth.profile?.nombres : "Administrador"}
+                  </strong>
+                  {auth && (
+                    <>
+                      <small>
+                        {auth.profile?.roles
+                          .map((role) => roleLabels[role])
+                          .join(", ")}
+                      </small>
+                      <a href="#/perfil">Mi perfil</a>
+                    </>
+                  )}
+
+                  <a href="#/cambiar-contrasena">Cambiar contraseña</a>
+
+                  <a
+                    href="#/login"
+                    onClick={
+                      auth
+                        ? (event) => {
+                            event.preventDefault();
+                            void auth
+                              .signOut()
+                              .catch((err) =>
+                                setAccountError(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "No se pudo cerrar sesión.",
+                                ),
+                              );
+                          }
+                        : undefined
+                    }
+                  >
+                    <Icon name="logout" size={16} />
+                    Cerrar sesión
+                  </a>
+                </div>
+              </details>
+            </div>
+          </header>
+
+          <div className="page-content" key={route.pathname}>
+            {accountError && (
+              <p className="integration-error" role="alert">
+                {accountError}
+              </p>
+            )}
+            {auth && !connectedPage && (
+              <div className="integration-banner" role="status">
+                Esta pantalla conserva datos de demostración. Su servicio se
+                conectará en una próxima etapa.
+              </div>
+            )}
+            {content}
+          </div>
+
+          <footer className="app-footer">
+            Find Food · Banco de alimentos
+            <span>
+              {auth && connectedPage
+                ? "Datos de la API"
+                : "Vista de demostración"}
+            </span>
+          </footer>
+        </main>
+      </div>
+
+      {auth &&
+      connectedPage &&
+      panel &&
+      panel !== "notificaciones" ? null : panel === "notificaciones" ? (
+        auth ? (
+          <NotificationsRead close={closeNoticeHref} />
+        ) : (
+          <NoticePanel close={closeNoticeHref} />
+        )
+      ) : panel && drawerModule ? (
+        <EntityPanel
+          key={drawerModule}
+          module={drawerModule}
+          panel={panel}
+          id={id}
+          base={route.pathname}
+        />
+      ) : null}
+    </DataContext.Provider>
+  );
 }
-
-export default App
