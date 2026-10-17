@@ -261,6 +261,8 @@ export function UsersLive() {
             setCreating(false);
           }}
           onSaved={() => {
+            setLoading(true);
+            setPage(null);
             setAttempt((n) => n + 1);
           }}
         />

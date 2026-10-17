@@ -138,18 +138,34 @@ export default function App({
   const key = route.pathname.slice(1) as ModuleKey;
   const config = modules[key];
 
+  const additionalHeadings: Record<string, string[]> = {
+    "/distribuciones": [
+      "Distribuciones",
+      "Gestiona las salidas de alimentos a beneficiarios.",
+    ],
+    "/incidencias": [
+      "Incidencias",
+      "Registra y resuelve novedades de la operación.",
+    ],
+    "/alertas": [
+      "Alertas de inventario",
+      "Consulta y atiende alertas de los lotes.",
+    ],
+  };
   const heading =
     auth && route.pathname === "/reportes"
       ? [
           "Reportes",
           "Consulta los indicadores de donaciones, asignación e inventario.",
         ]
-      : config
-        ? [config.title, config.description]
-        : headings[route.pathname] || [
-            "Página no encontrada",
-            "El enlace no corresponde a una pantalla disponible.",
-          ];
+      : additionalHeadings[route.pathname]
+        ? additionalHeadings[route.pathname]
+        : config
+          ? [config.title, config.description]
+          : headings[route.pathname] || [
+              "Página no encontrada",
+              "El enlace no corresponde a una pantalla disponible.",
+            ];
 
   const title = heading[0];
 
@@ -309,61 +325,72 @@ export default function App({
           <Brand />
 
           <nav aria-label="Navegación principal">
-            {navigation.map(([path, label, icon]) => {
-              const isUsers = path === "/usuarios";
+            {navigation
+              .filter(
+                ([path]) =>
+                  !auth ||
+                  auth.profile?.roles.includes("ADMIN") ||
+                  !["/usuarios", "/configuracion"].includes(path),
+              )
+              .map(([path, label, icon]) => {
+                const isUsers = path === "/usuarios";
 
-              const active =
-                route.pathname === path ||
-                (path === "/recepciones" && route.pathname === "/recepcion") ||
-                (path === "/donaciones" && route.pathname === "/asignaciones");
+                const active =
+                  route.pathname === path ||
+                  (path === "/recepciones" &&
+                    route.pathname === "/recepcion") ||
+                  (path === "/donaciones" &&
+                    route.pathname === "/asignaciones");
 
-              return (
-                <Fragment key={path}>
-                  <a
-                    href={"#" + path}
-                    className={active ? "active" : ""}
-                    aria-current={route.pathname === path ? "page" : undefined}
-                    aria-expanded={isUsers ? usersOpen : undefined}
-                    aria-controls={isUsers ? "users-submenu" : undefined}
-                    onClick={() => {
-                      if (isUsers) {
-                        setUsersOpen((open) => !open);
-                      } else {
-                        setMenu(false);
+                return (
+                  <Fragment key={path}>
+                    <a
+                      href={"#" + path}
+                      className={active ? "active" : ""}
+                      aria-current={
+                        route.pathname === path ? "page" : undefined
                       }
-                    }}
-                  >
-                    <Icon name={icon} />
-                    <span>{label}</span>
-                  </a>
-
-                  {isUsers && (
-                    <div
-                      id="users-submenu"
-                      className={`user-submenu ${usersOpen ? "open" : ""}`}
-                      role="group"
-                      aria-label="Submenú de usuarios"
-                      inert={!usersOpen}
+                      aria-expanded={isUsers ? usersOpen : undefined}
+                      aria-controls={isUsers ? "users-submenu" : undefined}
+                      onClick={() => {
+                        if (isUsers) {
+                          setUsersOpen((open) => !open);
+                        } else {
+                          setMenu(false);
+                        }
+                      }}
                     >
-                      <div>
-                        <a
-                          href="#/voluntarios"
-                          className={volunteersActive ? "active" : ""}
-                          aria-current={
-                            route.pathname === "/voluntarios"
-                              ? "page"
-                              : undefined
-                          }
-                          onClick={() => setMenu(false)}
-                        >
-                          Lista de voluntarios
-                        </a>
+                      <Icon name={icon} />
+                      <span>{label}</span>
+                    </a>
+
+                    {isUsers && (
+                      <div
+                        id="users-submenu"
+                        className={`user-submenu ${usersOpen ? "open" : ""}`}
+                        role="group"
+                        aria-label="Submenú de usuarios"
+                        inert={!usersOpen}
+                      >
+                        <div>
+                          <a
+                            href="#/voluntarios"
+                            className={volunteersActive ? "active" : ""}
+                            aria-current={
+                              route.pathname === "/voluntarios"
+                                ? "page"
+                                : undefined
+                            }
+                            onClick={() => setMenu(false)}
+                          >
+                            Lista de voluntarios
+                          </a>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </Fragment>
-              );
-            })}
+                    )}
+                  </Fragment>
+                );
+              })}
           </nav>
 
           <div className="sidebar-bottom">

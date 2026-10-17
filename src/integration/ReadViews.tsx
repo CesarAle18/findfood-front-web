@@ -3,7 +3,13 @@ import { Badge, Card, Drawer, Icon } from "../components/ui";
 import { useRead } from "./read";
 import { useSession } from "./session-context";
 import type { Page } from "./contracts";
-import { roleLabels, statusLabels } from "./contracts";
+import { DataDetails, ReadBody } from "./ReadDisplay";
+import { textValue, fieldValue, at } from "./read-format";
+import { ActionButtons } from "./ActionForm";
+import { createAction, recordActions } from "./actions";
+import { SettingsLive } from "./SettingsLive";
+import { ReceptionLive, DistributionCreate } from "./StockForms";
+import { EvidencePanel } from "./EvidencePanel";
 import { DashboardLive } from "./DashboardLive";
 
 type Row = Record<string, unknown>;
@@ -19,6 +25,42 @@ interface ListConfig {
   donation?: boolean;
 }
 const configs: Record<string, ListConfig> = {
+  "/distribuciones": {
+    title: "Distribuciones",
+    endpoint: "/distribuciones",
+    paginated: true,
+    detail: "/distribuciones",
+    columns: [
+      ["codigo", "Código"],
+      ["estado", "Estado"],
+      ["nombre_destino", "Destino"],
+      ["numero_beneficiarios", "Beneficiarios"],
+      ["fecha_distribucion", "Fecha"],
+    ],
+  },
+  "/incidencias": {
+    title: "Incidencias",
+    endpoint: "/incidencias",
+    paginated: true,
+    detail: "/incidencias",
+    columns: [
+      ["descripcion", "Descripción"],
+      ["estado", "Estado"],
+      ["nivel", "Nivel"],
+      ["created_at", "Fecha"],
+    ],
+  },
+  "/alertas": {
+    title: "Alertas",
+    endpoint: "/alertas?solo_abiertas=false",
+    columns: [
+      ["lote_inventario.codigo_lote", "Lote"],
+      ["mensaje", "Mensaje"],
+      ["nivel", "Nivel"],
+      ["generada_at", "Generada"],
+      ["atendida_at", "Atendida"],
+    ],
+  },
   "/donaciones": {
     title: "Donaciones",
     endpoint: "/donaciones",
@@ -27,7 +69,6 @@ const configs: Record<string, ListConfig> = {
     donation: true,
     columns: [
       ["codigo", "Código"],
-      ["titulo", "Título"],
       ["estado", "Estado"],
       ["peso_estimado_kg", "Peso estimado (kg)"],
       ["almacen_destino.nombre", "Almacén"],
@@ -86,7 +127,7 @@ const configs: Record<string, ListConfig> = {
       ["direccion", "Dirección"],
       ["tipo", "Almacenamiento"],
       ["capacidad_kg", "Capacidad (kg)"],
-      ["kg_en_inventario", "Inventario (kg)"],
+      ["kg_en_inventario", "Existencias actuales (kg)"],
       ["activo", "Activo"],
     ],
   },
@@ -131,140 +172,16 @@ const notifications: ListConfig = {
     ["leida_at", "Leída el"],
   ],
 };
-const labels: Record<string, string> = {
-  ...roleLabels,
-  ...statusLabels,
-  PUBLICADA: "Publicada",
-  ASIGNADA: "Asignada",
-  BORRADOR: "Borrador",
-  EN_RECOLECCION: "En recolección",
-  EN_TRANSITO: "En tránsito",
-  ENTREGADA: "Entregada",
-  RECIBIDA: "Recibida",
-  RECHAZADA: "Rechazada",
-  CANCELADA: "Cancelada",
-  EXPIRADA: "Expirada",
-  PLANIFICADA: "Planificada",
-  EN_CURSO: "En curso",
-  COMPLETADA: "Completada",
-  PENDIENTE: "Pendiente",
-  ACEPTADA: "Aceptada",
-  ACEPTADA_PARCIAL: "Aceptada parcialmente",
-  APROBADA: "Aprobada",
-  DISPONIBLE: "Disponible",
-  RESERVADO: "Reservado",
-  AGOTADO: "Agotado",
-  VENCIDO: "Vencido",
-  DESCARTADO: "Descartado",
-  SECO: "Seco",
-  REFRIGERADO: "Refrigerado",
-  id: "ID",
-  created_at: "Creado",
-  updated_at: "Actualizado",
-  items: "Productos",
-  asignacion: "Asignación",
-  contacto: "Contacto",
-  almacen_destino: "Almacén de destino",
-  usuario: "Usuario",
-  voluntario: "Voluntario",
-  url_documento_frente: "Documento (frente)",
-  url_documento_reverso: "Documento (reverso)",
-  url_selfie: "Selfie",
-  categorias_alimento: "Categorías de alimentos",
-  tipos_alimento: "Tipos de alimentos",
-  unidades_medida: "Unidades de medida",
-  tipos_vehiculo: "Tipos de vehículos",
-  motivos: "Motivos",
-  codigo: "Código",
-  email: "Correo",
-  direccion: "Dirección",
-  telefono: "Teléfono",
-  lat: "Latitud",
-  lng: "Longitud",
-};
-const at = (row: Row, path: string): unknown =>
-  path
-    .split(".")
-    .reduce<unknown>(
-      (value, key) =>
-        value && typeof value === "object" ? (value as Row)[key] : undefined,
-      row,
-    );
-function textValue(value: unknown): string {
-  if (value == null || value === "") return "—";
-  if (typeof value === "boolean") return value ? "Sí" : "No";
-  if (typeof value === "number")
-    return value.toLocaleString("es-CO", { maximumFractionDigits: 3 });
-  if (typeof value === "string") {
-    if (/^\d{4}-\d{2}-\d{2}T/.test(value))
-      return new Date(value).toLocaleString("es-CO", {
-        timeZone: "America/Bogota",
-      });
-    return labels[value] || value;
-  }
-  if (Array.isArray(value)) return value.map(textValue).join(", ");
-  const row = value as Row;
-  return textValue(row.nombre ?? row.codigo ?? row.titulo ?? row.id);
-}
-function fieldLabel(key: string) {
-  return (
-    labels[key] ||
-    key.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase())
-  );
-}
-function DataDetails({ value, depth = 0 }: { value: unknown; depth?: number }) {
-  if (value == null) return <p>No hay información disponible.</p>;
-  if (Array.isArray(value))
-    return value.length ? (
-      <div className="form-stack">
-        {value.map((item, index) => (
-          <section key={index}>
-            <DataDetails value={item} depth={depth + 1} />
-          </section>
-        ))}
-      </div>
-    ) : (
-      <p>Sin registros.</p>
-    );
-  if (typeof value !== "object") return <p>{textValue(value)}</p>;
-  return (
-    <dl className="details api-details">
-      {Object.entries(value as Row).map(([key, item]) => (
-        <div key={key}>
-          <dt>{fieldLabel(key)}</dt>
-          <dd>
-            {typeof item === "object" && item !== null && depth < 4 ? (
-              <DataDetails value={item} depth={depth + 1} />
-            ) : typeof item === "string" && /^https?:\/\//.test(item) ? (
-              <a href={item} target="_blank" rel="noreferrer">
-                Abrir {fieldLabel(key).toLowerCase()}
-              </a>
-            ) : (
-              textValue(item)
-            )}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-function ReadBody({ endpoint }: { endpoint: string }) {
-  const read = useRead<unknown>(endpoint);
-  if (read.loading) return <p role="status">Cargando información…</p>;
-  if (read.error)
-    return (
-      <div className="form-stack">
-        <p className="integration-error" role="alert">
-          {read.error}
-        </p>
-        <button className="button secondary" onClick={read.refresh}>
-          Reintentar
-        </button>
-      </div>
-    );
-  return <DataDetails value={read.data} />;
-}
 function Records({ config }: { config: ListConfig }) {
+  const auth = useSession()!;
+  const path = config.endpoint.split("?")[0];
+  const mutationPath =
+    path === "/admin/verificaciones"
+      ? "/pendientes"
+      : path === "/inventario/lotes"
+        ? "/inventario"
+        : path;
+  const create = createAction(mutationPath);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Row | null>(null);
@@ -284,13 +201,79 @@ function Records({ config }: { config: ListConfig }) {
         .includes(search.toLocaleLowerCase("es")),
     ),
   );
+  const selectedRow =
+    selected &&
+    (rows.find(
+      (row) => row[config.idField || "id"] === selected[config.idField || "id"],
+    ) ||
+      selected);
+  const warehouseWeights =
+    path === "/almacenes"
+      ? rows.map((row) =>
+          row.kg_en_inventario == null ||
+          String(row.kg_en_inventario).trim() === ""
+            ? NaN
+            : Number(row.kg_en_inventario),
+        )
+      : [];
   return (
     <>
+      {path === "/almacenes" && (
+        <Card title="Existencias de los almacenes">
+          <p>
+            La capacidad es el límite de almacenamiento. Las existencias
+            corresponden al peso de los lotes disponibles o reservados, sin
+            filtro de fechas.
+          </p>
+          {!read.loading && !read.error && (
+            <p className="inventory-total">
+              Total en inventario{" "}
+              <strong>
+                {warehouseWeights.every(Number.isFinite)
+                  ? `${warehouseWeights.reduce((sum, kg) => sum + kg, 0).toLocaleString("es-CO", { maximumFractionDigits: 3 })} kg`
+                  : "Peso no disponible"}
+              </strong>
+            </p>
+          )}
+        </Card>
+      )}
       {config.endpoint.startsWith("/admin/usuarios?rol=") && (
         <p className="integration-banner">
           Esta lista muestra los datos de cuenta disponibles. El vehículo y la
           capacidad se consultan en el detalle de las verificaciones.
         </p>
+      )}
+      {config.title === "Inventario" && (
+        <div className="card-actions">
+          <a className="button secondary" href="#/distribuciones">
+            Distribuciones
+          </a>
+          <a className="button secondary" href="#/alertas">
+            Alertas de inventario
+          </a>
+          <a className="button secondary" href="#/incidencias">
+            Incidencias
+          </a>
+        </div>
+      )}
+      {config.title === "Distribuciones" && (
+        <DistributionCreate onSaved={read.refresh} />
+      )}
+      {path === "/me/notificaciones" && (
+        <ActionButtons
+          actions={[
+            {
+              key: "notice-all",
+              label: "Marcar todas como leídas",
+              roles: ["ADMIN", "ASESOR_BANCO"],
+              endpoint: "/me/notificaciones/leer-todas",
+              method: "POST",
+              fields: [],
+              body: () => ({}),
+            },
+          ]}
+          onSaved={read.refresh}
+        />
       )}
       <Card className="table-card">
         <div className="toolbar">
@@ -307,6 +290,9 @@ function Records({ config }: { config: ListConfig }) {
             <a className="button secondary" href="#/pendientes">
               Ver pendientes
             </a>
+          )}
+          {create && (
+            <ActionButtons actions={[create]} onSaved={read.refresh} />
           )}
           <button className="button secondary" onClick={read.refresh}>
             Actualizar lista
@@ -351,7 +337,7 @@ function Records({ config }: { config: ListConfig }) {
                           {key === "estado" ? (
                             <Badge>{textValue(at(row, key))}</Badge>
                           ) : (
-                            textValue(at(row, key))
+                            fieldValue(key, at(row, key))
                           )}
                         </td>
                       ))}
@@ -362,6 +348,22 @@ function Records({ config }: { config: ListConfig }) {
                         >
                           Ver
                         </button>
+                        {path === "/me/notificaciones" && !row.leida_at && (
+                          <ActionButtons
+                            actions={[
+                              {
+                                key: "notice-read",
+                                label: "Marcar leída",
+                                roles: ["ADMIN", "ASESOR_BANCO"],
+                                endpoint: `/me/notificaciones/${encodeURIComponent(String(row.id))}/leer`,
+                                method: "POST",
+                                fields: [],
+                                body: () => ({}),
+                              },
+                            ]}
+                            onSaved={read.refresh}
+                          />
+                        )}
                         {config.donation && (
                           <a
                             className="table-action"
@@ -370,6 +372,16 @@ function Records({ config }: { config: ListConfig }) {
                             Asignar
                           </a>
                         )}
+                        {config.donation &&
+                          auth.profile?.roles.includes("ASESOR_BANCO") &&
+                          row.estado === "ENTREGADA" && (
+                            <a
+                              className="table-action"
+                              href={`#/recepcion?id=${encodeURIComponent(String(row.id))}`}
+                            >
+                              Recibir
+                            </a>
+                          )}
                       </td>
                     </tr>
                   ))}
@@ -417,19 +429,27 @@ function Records({ config }: { config: ListConfig }) {
           </>
         )}
       </Card>
-      {selected && (
+      {selectedRow && (
         <Drawer
           title={`Detalle · ${config.title}`}
           close={window.location.hash}
           onClose={() => setSelected(null)}
         >
+          <ActionButtons
+            actions={recordActions(mutationPath, selectedRow)}
+            onSaved={() => {
+              setSelected(null);
+              read.refresh();
+            }}
+          />
           {config.detail ? (
-            <ReadBody
-              key={String(selected[config.idField || "id"])}
-              endpoint={`${config.detail}/${encodeURIComponent(String(selected[config.idField || "id"]))}`}
+            <DetailBody
+              path={mutationPath}
+              row={selectedRow}
+              endpoint={`${config.detail}/${encodeURIComponent(String(selectedRow[config.idField || "id"]))}`}
             />
           ) : (
-            <DataDetails value={selected} />
+            <DataDetails value={selectedRow} />
           )}
         </Drawer>
       )}
@@ -459,7 +479,7 @@ export function ReadScreen({ path, id }: { path: string; id: string | null }) {
         <DashboardLive />
       </>
     );
-  if (path === "/configuracion") return <SettingsRead />;
+  if (path === "/configuracion") return <SettingsLive />;
   if (!id)
     return (
       <Card>
@@ -477,45 +497,67 @@ export function ReadScreen({ path, id }: { path: string; id: string | null }) {
       <Card title="Donación seleccionada">
         <ReadBody key={id} endpoint={donation} />
       </Card>
+      <ActionButtons
+        actions={recordActions("/donaciones", { id }).filter(
+          (a) => a.key === "donation-reassign",
+        )}
+        onSaved={() => {}}
+      />
       {path === "/asignaciones" && (
         <Card title="Voluntarios candidatos">
           <ReadBody key={id} endpoint={`${donation}/candidatos`} />
         </Card>
       )}
-      {path === "/recepcion" && (
-        <p className="integration-banner">
-          Consulta de la donación para recepción. El registro de una recepción
-          se conectará en una próxima etapa.
-        </p>
-      )}
+      {path === "/recepcion" && <ReceptionLive id={id} />}
     </div>
   );
 }
-function SettingsRead() {
-  const [tab, setTab] = useState("banco");
+function DetailBody({
+  path,
+  row,
+  endpoint,
+}: {
+  path: string;
+  row: Row;
+  endpoint: string;
+}) {
+  const read = useRead<Row>(endpoint);
   return (
-    <Card>
-      <div className="tabs">
-        {[
-          ["banco", "Banco de alimentos"],
-          ["parametros", "Parámetros"],
-          ["catalogos", "Catálogos"],
-        ].map(([code, label]) => (
-          <button
-            key={code}
-            aria-pressed={tab === code}
-            className={tab === code ? "active" : ""}
-            onClick={() => setTab(code)}
-          >
-            {label}
-          </button>
+    <>
+      <button className="button secondary" type="button" onClick={read.refresh}>
+        Actualizar detalle
+      </button>
+      <ReadBody endpoint={endpoint} read={read} />
+      {path === "/donaciones" && (
+        <>
+          <h3>Historial</h3>
+          <ReadBody endpoint={`${endpoint}/historial`} />
+        </>
+      )}
+      {path === "/rutas" &&
+        Array.isArray(read.data?.paradas) &&
+        (read.data.paradas as Row[]).map((stop) => (
+          <section key={String(stop.id)}>
+            <h3>
+              Parada {String(stop.orden)} · {String(stop.direccion)}
+            </h3>
+
+            <EvidencePanel parent="parada_id" id={String(stop.id)} />
+          </section>
         ))}
-      </div>
-      <ReadBody
-        key={tab}
-        endpoint={tab === "catalogos" ? "/catalogos" : `/admin/${tab}`}
-      />
-    </Card>
+      {["/donaciones", "/recepciones", "/incidencias"].includes(path) && (
+        <EvidencePanel
+          parent={
+            path === "/donaciones"
+              ? "donacion_id"
+              : path === "/recepciones"
+                ? "recepcion_id"
+                : "incidencia_id"
+          }
+          id={String(row.id)}
+        />
+      )}
+    </>
   );
 }
 export function NotificationsRead({ close }: { close: string }) {

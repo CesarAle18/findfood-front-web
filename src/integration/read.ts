@@ -22,6 +22,13 @@ export function useRead<T>(endpoint: string | null) {
     );
     return () => controller.abort();
   }, [endpoint, attempt]);
+  useEffect(() => {
+    const refresh = () => {
+      setAttempt((n) => n + 1);
+    };
+    window.addEventListener("findfood:data-changed", refresh);
+    return () => window.removeEventListener("findfood:data-changed", refresh);
+  }, []);
   const current = result?.endpoint === endpoint ? result : null;
   return {
     data: current?.data,

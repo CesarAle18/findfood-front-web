@@ -1,6 +1,6 @@
 # FindFood Web
 
-Primera integración con la API: consulta [la guía de conexión](docs/conexion-web.md) para configurar `.env.local`, CORS y Supabase. El modo predeterminado es `api`; para recorrer el diseño utiliza `VITE_DATA_MODE=demo`.
+Integración del panel con la rama Conexion_Front de la API: consulta [la guía de conexión](docs/conexion-web.md) para configurar `.env.local`, CORS y Supabase. El modo predeterminado es `api`; para recorrer el diseño utiliza `VITE_DATA_MODE=demo`.
 
 # Find Food web
 

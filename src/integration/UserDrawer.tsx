@@ -5,6 +5,8 @@ import type { ApiUser } from "./contracts";
 import { errorMessage } from "./http";
 import { profileService, userService } from "./services";
 import type { CreateUserResult } from "./services";
+import { ActionButtons } from "./ActionForm";
+import { recordActions } from "./actions";
 import { useSession } from "./session-context";
 
 export function UserDrawer({
@@ -258,6 +260,18 @@ export function UserDrawer({
             )}
             {saved && <p role="status">Información actualizada.</p>}
           </form>
+          {user && !ownProfile && (
+            <ActionButtons
+              actions={recordActions("/usuarios", {
+                ...user,
+                estado: originalStatus,
+              })}
+              onSaved={() => {
+                onSaved();
+                onClose();
+              }}
+            />
+          )}
           {user && (
             <Details
               items={[
