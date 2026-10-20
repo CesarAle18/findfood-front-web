@@ -1455,3 +1455,53 @@ fieldset.form-stack {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+.route-map-card { margin-bottom: 24px; }
+.route-picker { display: grid; gap: 8px; max-width: 480px; font-weight: 600; }
+.route-picker select { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface, white); color: inherit; font: inherit; }
+.route-map-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+.route-map-canvas { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: #e6eee8; }
+.route-map-canvas svg { display: block; width: 100%; height: auto; }
+.map-attribution { position: absolute; right: 0; bottom: 0; padding: 3px 8px; background: #fffffff0; color: #175b48; font-size: 11px; }
+.route-stop-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px 32px; padding-left: 24px; }
+.route-stop-list span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.assignment-live { display: grid; gap: 24px; }
+.assignment-live .assignment-summary { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: 20px; }
+.assignment-live .assignment-summary > div { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.assignment-live .assignment-summary span:not(.badge), .candidate-score > span { font-size: 12px; color: var(--muted); }
+.assignment-details { border-top: 1px solid var(--border); margin-top: 24px; padding-top: 16px; }
+.assignment-live summary { cursor: pointer; color: #16785c; font-weight: 600; padding: 8px 0; }
+.assignment-columns { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr); align-items: start; gap: 24px; }
+.assignment-columns > *, .assignment-sidebar > * { min-width: 0; }
+.assignment-sidebar { display: grid; gap: 24px; }
+.assignment-candidates { list-style: none; padding: 0; margin: 20px 0 0; display: grid; gap: 16px; }
+.assignment-candidates > li { display: flex; align-items: flex-start; gap: 16px; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: #f9fcfa; }
+.assignment-candidates > li.is-selected { border-color: #278563; box-shadow: 0 0 0 1px #278563; }
+.candidate-rank { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; background: #e6f5ef; color: #16785c; font-weight: 700; }
+.candidate-info { min-width: 0; flex: 1; }
+.candidate-info h3 { margin: 0 0 10px; }
+.candidate-score { display: grid; gap: 8px; justify-items: start; }
+.candidate-score > strong { font-size: 26px; color: #16785c; }
+.assignment-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin: 12px 0; }
+.assignment-facts div { min-width: 0; }
+.assignment-facts dt { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.assignment-facts dd { margin: 0; overflow-wrap: anywhere; }
+.activity-card { margin-bottom: 24px; }
+.notifications-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.notifications-toolbar .search { flex: 1 1 240px; min-width: 0; }
+.notification-read-state { display: flex; justify-content: flex-end; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.notifications-card .activity-list strong, .notifications-card .activity-list p { overflow-wrap: anywhere; }
+.activity-list { list-style: none; padding: 0; display: grid; gap: 12px; }
+.activity-list li { padding: 14px; border: 1px solid var(--border); border-radius: 8px; }
+.activity-list li.is-unread { border-left: 4px solid #16785c; background: #f0faf5; }
+.activity-list a, .activity-list a span { display: block; }
+.activity-list a span, .activity-list time { font-size: 12px; margin-top: 6px; }
+@media (max-width: 1000px) {
+  .assignment-columns { grid-template-columns: minmax(0, 1fr); }
+  .assignment-live .assignment-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .assignment-live .assignment-summary { grid-template-columns: minmax(0, 1fr); }
+  .assignment-candidates > li { flex-wrap: wrap; padding: 14px; }
+  .candidate-score { width: 100%; grid-template-columns: 1fr 1fr auto; align-items: center; }
+}

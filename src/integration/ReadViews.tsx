@@ -11,6 +11,11 @@ import { SettingsLive } from "./SettingsLive";
 import { ReceptionLive, DistributionCreate } from "./StockForms";
 import { EvidencePanel } from "./EvidencePanel";
 import { DashboardLive } from "./DashboardLive";
+import { RouteMap } from "./RouteMap";
+import { AssignmentLive } from "./AssignmentLive";
+import { NotificationsList } from "./NotificationsList";
+import { useActivityObserver } from "./activity-observer";
+import { useActivity } from "./activity";
 
 type Row = Record<string, unknown>;
 type Column = [string, string];
@@ -161,17 +166,6 @@ const configs: Record<string, ListConfig> = {
     ],
   },
 };
-const notifications: ListConfig = {
-  title: "Notificaciones",
-  endpoint: "/me/notificaciones",
-  paginated: true,
-  columns: [
-    ["titulo", "Título"],
-    ["cuerpo", "Mensaje"],
-    ["created_at", "Fecha"],
-    ["leida_at", "Leída el"],
-  ],
-};
 function Records({ config }: { config: ListConfig }) {
   const auth = useSession()!;
   const path = config.endpoint.split("?")[0];
@@ -190,7 +184,7 @@ function Records({ config }: { config: ListConfig }) {
     (config.paginated
       ? `${config.endpoint.includes("?") ? "&" : "?"}limite=20&desplazamiento=${offset}`
       : "");
-  const read = useRead<Row[] | Page<Row>>(endpoint);
+  const read = useRead<Row[] | Page<Row>>(endpoint, path === "/me/notificaciones" ? 15000 : 0);
   const data = read.data;
   const rows = Array.isArray(data) ? data : data?.datos || [];
   const total = Array.isArray(data) ? data.length : data?.total || 0;
@@ -218,6 +212,7 @@ function Records({ config }: { config: ListConfig }) {
       : [];
   return (
     <>
+      {path === "/rutas" && <RouteMap rows={visible} />}
       {path === "/almacenes" && (
         <Card title="Existencias de los almacenes">
           <p>
@@ -491,6 +486,7 @@ export function ReadScreen({ path, id }: { path: string; id: string | null }) {
         </a>
       </Card>
     );
+  if (path === "/asignaciones") return <AssignmentLive key={id} id={id} />;
   const donation = `/donaciones/${encodeURIComponent(id)}`;
   return (
     <div className="form-stack">
@@ -503,11 +499,6 @@ export function ReadScreen({ path, id }: { path: string; id: string | null }) {
         )}
         onSaved={() => {}}
       />
-      {path === "/asignaciones" && (
-        <Card title="Voluntarios candidatos">
-          <ReadBody key={id} endpoint={`${donation}/candidatos`} />
-        </Card>
-      )}
       {path === "/recepcion" && <ReceptionLive id={id} />}
     </div>
   );
@@ -563,14 +554,19 @@ function DetailBody({
 export function NotificationsRead({ close }: { close: string }) {
   return (
     <Drawer title="Notificaciones" close={close}>
-      <Records config={notifications} />
+      <NotificationsList />
     </Drawer>
   );
 }
 export function LiveBell({ href }: { href: string }) {
+  useActivityObserver();
+  const user = useSession()?.session?.user.id ?? "";
+  const activity = useActivity(user);
   const read = useRead<Page<Row> & { no_leidas: number }>(
     "/me/notificaciones?limite=1&desplazamiento=0",
+    15000,
   );
+  const unread = (read.data?.no_leidas ?? 0) + activity.filter((n) => !n.leida_at).length;
   return (
     <a
       className="notification-button"
@@ -578,12 +574,12 @@ export function LiveBell({ href }: { href: string }) {
       aria-label={
         read.error
           ? "Abrir notificaciones; no se pudo consultar el contador"
-          : `Abrir notificaciones${read.data ? `, ${read.data.no_leidas} sin leer` : ""}`
+          : `Abrir notificaciones, ${unread} sin leer`
       }
     >
       <Icon name="bell" />
-      {read.data && read.data.no_leidas > 0 && (
-        <span>{read.data.no_leidas}</span>
+      {unread > 0 && (
+        <span>{unread}</span>
       )}
     </a>
   );

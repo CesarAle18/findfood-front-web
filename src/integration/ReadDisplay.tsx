@@ -60,7 +60,14 @@ export function DataDetails({
               <tr key={key}>
                 <th scope="row">{fieldLabel(key)}</th>
                 <td>
-                  {["foto_url", "url_lectura"].includes(key) ? (
+                  {((collection === "documentos" &&
+                    ["frente", "reverso", "selfie"].includes(key)) || [
+                    "foto_url",
+                    "url_lectura",
+                    "url_documento_frente",
+                    "url_documento_reverso",
+                    "url_selfie",
+                  ].includes(key)) ? (
                     readingUrl(item) ? (
                       <EvidenceImage
                         key={String(item)}

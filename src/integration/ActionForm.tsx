@@ -3,6 +3,7 @@ import { Drawer, Field, Select } from "../components/ui";
 import { apiRequest, errorMessage } from "./http";
 import type { Action, Input, Row, Source, Values } from "./actions";
 import { useSession } from "./session-context";
+import { addActivity } from "./activity";
 
 export function OptionsField({
   field,
@@ -219,6 +220,15 @@ export function ActionForm({
               method: action.method,
               body: JSON.stringify(body),
             });
+            if (action.key === "verify-approve" && auth?.session?.user.id) {
+              const verificationId = action.endpoint.split("/").at(-2);
+              addActivity(auth.session.user.id, {
+                id: `volunteer:${verificationId}`,
+                titulo: "Se aceptó a un nuevo voluntario",
+                cuerpo: "La solicitud de voluntariado fue aprobada correctamente.",
+                href: "#/voluntarios",
+              });
+            }
             window.dispatchEvent(new Event("findfood:data-changed"));
             onSaved();
             onClose();

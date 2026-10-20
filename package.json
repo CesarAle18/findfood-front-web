@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:render": "node scripts/check-render.cjs",
+    "test:activity": "node scripts/check-activity.cjs",
     "test:integration": "node scripts/check-integration.cjs"
   },
   "dependencies": {

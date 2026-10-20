@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "./http";
 
-export function useRead<T>(endpoint: string | null) {
+export function useRead<T>(endpoint: string | null, pollMs = 0) {
+  const pending = useRef<AbortController | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{
     endpoint: string;
@@ -11,6 +12,7 @@ export function useRead<T>(endpoint: string | null) {
   useEffect(() => {
     if (!endpoint) return;
     const controller = new AbortController();
+    pending.current = controller;
     apiRequest<T>(endpoint, { signal: controller.signal }).then(
       (data) => {
         if (!controller.signal.aborted) setResult({ endpoint, data });
@@ -19,7 +21,9 @@ export function useRead<T>(endpoint: string | null) {
         if (!controller.signal.aborted)
           setResult({ endpoint, error: errorMessage(error) });
       },
-    );
+    ).finally(() => {
+      if (pending.current === controller) pending.current = null;
+    });
     return () => controller.abort();
   }, [endpoint, attempt]);
   useEffect(() => {
@@ -29,6 +33,18 @@ export function useRead<T>(endpoint: string | null) {
     window.addEventListener("findfood:data-changed", refresh);
     return () => window.removeEventListener("findfood:data-changed", refresh);
   }, []);
+  useEffect(() => {
+    if (!endpoint || !pollMs) return;
+    const refresh = () => {
+      if (document.visibilityState === "visible" && !pending.current) setAttempt((n) => n + 1);
+    };
+    const timer = window.setInterval(refresh, pollMs);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [endpoint, pollMs]);
   const current = result?.endpoint === endpoint ? result : null;
   return {
     data: current?.data,

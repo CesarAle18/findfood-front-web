@@ -162,3 +162,27 @@ Las fotos de los productos llegan por GET /v1/donaciones/:id en items[].foto_url
 - Si devuelve una URL firmada pero la imagen falla, renueva el enlace y comprueba la respuesta HTTP y el formato del archivo. No debe sustituirse el enlace privado por una URL pública construida en la web.
 
 Validación con respuestas simuladas: lectura en donaciones, recepciones, incidencias y paradas; fotos de productos; URL nula o inválida; fallo de imagen; renovación; almacenamiento simulado; error de consulta y lista vacía. No se usaron las credenciales ni el Storage real del usuario.
+
+## Mapa de rutas y distribución de asignaciones
+
+Rutas muestra un mapa en la pantalla principal con selector sobre las rutas de la página y del filtro actuales. Consulta GET /rutas/:id al cambiar la selección. Las paradas se ordenan por orden y se ubican mediante lat/lng válidos; las que no incluyen coordenadas se omiten del mapa y se informa. Si no hay coordenadas, se muestra un estado vacío. El mapa permite acercar, alejar y centrar, con cartografía OpenStreetMap y atribución visible. Se respeta la caché del navegador; solo se solicitan las teselas visibles (https://operations.osmfoundation.org/policies/tiles/).
+
+Cuando el detalle incluye geometria o geometry de tipo GeoJSON LineString, se dibuja ese trazado. De lo contrario, la línea discontinua conecta las paradas e indica que la API no entrega el recorrido GPS. No se calcula un recorrido por calles ni se interpreta la conexión entre paradas como un historial de posiciones. Para visualizar el recorrido efectivamente realizado, el backend debe incluir esa geometría en el detalle.
+
+Asignaciones presenta un resumen de donación y dos columnas: candidatos en el orden de la API y desglose del candidato seleccionado con la acción de reasignación. Todos los datos originales siguen accesibles en secciones desplegables. No se inventan métricas, filtros de elegibilidad, tiempos de oferta ni acciones de oferta manual que la API no expone. El desglose se muestra si llega como desglose o desglose_puntaje; si no, se informa su ausencia. En móvil las columnas se apilan.
+
+## Actualización de notificaciones y actividad
+
+El contador y la lista GET /me/notificaciones se actualizan cada 15 segundos y al volver a una pestaña visible. La actualización conserva los datos visibles mientras consulta y no interrumpe una petición en curso. Se mantienen las acciones de lectura de notificaciones del servidor.
+
+Además, la campana observa rutas y donaciones y, para ADMIN, usuarios y verificaciones PENDIENTE/APROBADA. Consulta todas las páginas en lotes de 100 cada 15 segundos mientras la pestaña está visible, al volver a ella y tras guardar una operación. Las consultas de administración solo se realizan para ADMIN. Si una fuente falla, conserva su referencia previa y la vuelve a intentar en el siguiente ciclo.
+
+Los nuevos identificadores generan avisos de ruta, donación o usuario creado, voluntario pendiente y voluntario aprobado. Los cambios a EXPIRADA de una donación, COMPLETADA de una ruta o de PENDIENTE/PENDIENTE_VERIFICACION a ACTIVO de un usuario generan avisos propios. Una reactivación de SUSPENDIDO no se presenta como aprobación. Una fecha de recogida pasada no basta para anunciar vencimiento: el estado debe confirmarlo la API. Aprobar un voluntario desde la web sigue generando su aviso inmediatamente después de una respuesta exitosa.
+
+En la primera consulta solo se anuncian los voluntarios pendientes creados en los últimos 7 días (created_at válido, no futuro); el resto de los registros establece la referencia sin anunciar altas históricas. Los estados conocidos se guardan por usuario y fuente en localStorage: al recargar o volver a entrar se detectan altas y cambios frente a la última consulta completa. Se evita repetir cada evento por entidad. El intervalo de 7 días está definido en recentPendingDays en src/integration/activity-events.ts.
+
+Las notificaciones del servidor y la actividad del navegador se presentan en una sola lista, ordenada por fecha descendente, con búsqueda y un único botón Marcar todas como leídas. La consulta recorre todas las páginas del servidor en lotes de 100; la interfaz muestra inicialmente 20 avisos y permite Mostrar más. Se conserva la actividad local existente, separada por usuario, hasta 100 avisos. Cada aviso puede marcarse individualmente: los locales actualizan localStorage y los del servidor usan POST /me/notificaciones/:id/leer. Marcar todas actualiza ambas fuentes y usa POST /me/notificaciones/leer-todas cuando corresponde. No se requiere confirmar una segunda ventana para marcar lectura. Si falla la consulta del servidor, se informa y se mantienen visibles los avisos disponibles.
+
+La actividad local es observada por este navegador: al volver puede detectar diferencias respecto al último estado guardado, pero no reconstruye transiciones intermedias, entidades eliminadas antes de consultar ni un historial anterior a la primera referencia. Para entrega duradera a todos los usuarios y dispositivos, la API debe registrar los eventos en /me/notificaciones. No se agregó un endpoint de escritura ni se modificaron permisos del backend.
+
+Validación: npm run test:activity comprueba altas, ventana de pendientes recientes, cambios de estado, ausencia de duplicados y fechas inválidas. El escenario de integración «actividad importante» comprueba campana, listado, paginación más allá de 100 donaciones y persistencia al recargar.

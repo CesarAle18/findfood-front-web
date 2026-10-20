@@ -8,6 +8,7 @@ import type { CreateUserResult } from "./services";
 import { ActionButtons } from "./ActionForm";
 import { recordActions } from "./actions";
 import { useSession } from "./session-context";
+import { addActivity } from "./activity";
 
 export function UserDrawer({
   user,
@@ -156,6 +157,14 @@ export function UserDrawer({
                     email: email.trim().toLowerCase(),
                   });
                   setCreated(result);
+                  if (auth.session?.user.id) {
+                    addActivity(auth.session.user.id, {
+                      id: `user:${result.id}`,
+                      titulo: "Se ha creado un nuevo usuario",
+                      cuerpo: [body.nombres, body.apellidos].filter(Boolean).join(" "),
+                      href: "#/usuarios",
+                    });
+                  }
                 } else {
                   if (ownProfile) await profileService.update(body);
                   else if (status === "ACTIVO" || status === "INACTIVO") {
@@ -170,6 +179,7 @@ export function UserDrawer({
                   setSaved(true);
                   if (ownProfile) await auth.refreshProfile();
                 }
+                window.dispatchEvent(new Event("findfood:data-changed"));
                 onSaved();
               } catch (err) {
                 setError(errorMessage(err));

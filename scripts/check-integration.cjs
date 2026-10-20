@@ -348,6 +348,13 @@ const jwt = () =>
         state.statuses[target] = body.estado;
         return fulfill(route, { id: target, estado: body.estado });
       }
+      if (url.pathname.endsWith("/me/notificaciones") && state.notificationFailure)
+        return fulfill(route, { title: "Notificaciones no disponibles", status: 503 }, 503);
+      if (url.pathname.endsWith("/me/notificaciones") && state.notificationRows) {
+        const offset = Number(url.searchParams.get("desplazamiento") || 0);
+        const limit = Number(url.searchParams.get("limite") || 100);
+        return fulfill(route, { datos: state.notificationRows.slice(offset, offset + limit).map((n) => ({ ...n, leida_at: state.noticesRead ? new Date().toISOString() : null })), total: state.notificationRows.length, no_leidas: state.noticesRead ? 0 : state.notificationRows.length });
+      }
       if (url.pathname.endsWith("/me/notificaciones"))
         return fulfill(route, {
           datos: [
@@ -356,7 +363,7 @@ const jwt = () =>
               titulo: "Donación publicada",
               cuerpo: "Hay una nueva donación",
               created_at: new Date().toISOString(),
-              leida_at: null,
+              leida_at: state.noticesRead ? new Date().toISOString() : null,
             },
           ],
           total: 1,
@@ -364,6 +371,17 @@ const jwt = () =>
           desplazamiento: 0,
           no_leidas: state.noticesRead ? 0 : 1,
         });
+      const activityKey = `${url.pathname}${url.pathname.endsWith("/verificaciones") ? `?estado=${url.searchParams.get("estado")}` : ""}`;
+      if (state.activityRows?.[activityKey]) {
+        const all = state.activityRows[activityKey];
+        const offset = Number(url.searchParams.get("desplazamiento") || 0);
+        const limit = Number(url.searchParams.get("limite") || 100);
+        return fulfill(route, { datos: all.slice(offset, offset + limit), total: all.length, limite: limit, desplazamiento: offset });
+      }
+      if (state.routeRows && url.pathname === "/v1/rutas")
+        return fulfill(route, { datos: state.routeRows, total: state.routeRows.length, limite: 100, desplazamiento: 0 });
+      if (state.routeDetails && state.routeDetails[url.pathname])
+        return fulfill(route, state.routeDetails[url.pathname]);
       const resources = {
         "/v1/distribuciones": {
           id,
@@ -768,6 +786,112 @@ const jwt = () =>
         assert.equal(state.updates, 1);
       },
     );
+    await scenario("mapa por ruta y actividad nueva sin recargar", async ({ page, state, login }) => {
+      await page.route("https://tile.openstreetmap.org/**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64") }));
+      state.routeRows = [
+        { id, codigo: "RUTA-UNO", estado: "COMPLETADA", paradas: 2 },
+        { id: userId(2), codigo: "RUTA-DOS", estado: "PLANIFICADA", paradas: 1 },
+      ];
+      state.routeDetails = {
+        [`/v1/rutas/${id}`]: { ...state.routeRows[0], paradas: [
+          { id: "p1", orden: 1, direccion: "Origen real", lat: 4.65, lng: -74.08, estado: "COMPLETADA" },
+          { id: "p2", orden: 2, direccion: "Destino real", lat: 4.67, lng: -74.10, estado: "COMPLETADA" },
+        ] },
+        [`/v1/rutas/${userId(2)}`]: { ...state.routeRows[1], paradas: [] },
+      };
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.goto(`${base}/#/rutas`);
+      await page.getByRole("img", { name: "Mapa de la ruta RUTA-UNO", exact: true }).waitFor();
+      await page.getByText("Paradas conectadas en orden. La API no incluye el trazado GPS del recorrido.", { exact: true }).waitFor();
+      if (process.env.TEST_SCREENSHOT_DIR) await page.screenshot({ path: require("node:path").join(process.env.TEST_SCREENSHOT_DIR, "routes-map.png"), fullPage: true });
+      const before = await page.locator(".route-map-canvas polyline").last().getAttribute("points");
+      await page.getByRole("button", { name: "Acercar mapa" }).click();
+      assert.notEqual(await page.locator(".route-map-canvas polyline").last().getAttribute("points"), before);
+      await page.getByLabel("Ruta seleccionada", { exact: true }).selectOption(userId(2));
+      await page.getByText("Esta ruta no incluye coordenadas para mostrar el mapa.", { exact: true }).waitFor();
+      assert.equal(await page.locator(".route-map-canvas").count(), 0);
+      await page.getByLabel("Ruta seleccionada", { exact: true }).selectOption(id);
+      await page.getByRole("img", { name: "Mapa de la ruta RUTA-UNO", exact: true }).waitFor();
+      state.routeRows.unshift({ id: userId(3), codigo: "RUTA-NUEVA", estado: "PLANIFICADA", paradas: 0 });
+      await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+      await page.getByRole("link", { name: "Abrir notificaciones, 2 sin leer", exact: true }).waitFor();
+      await page.getByRole("link", { name: /Abrir notificaciones/ }).click();
+      await page.getByText("Se ha creado una nueva ruta", { exact: true }).waitFor();
+      await page.getByRole("button", { name: "Marcar todas como leídas", exact: true }).click();
+      await page.getByRole("link", { name: "Abrir notificaciones, 0 sin leer", exact: true }).waitFor();
+    });
+    await scenario("actividad importante: pendientes, altas y cambios de estado", async ({ page, state, login }) => {
+      state.activityRows = {
+        "/v1/rutas": [{ id: "route-one", codigo: "RUT-ONE", estado: "EN_CURSO" }],
+        "/v1/donaciones": [{ id: "donation-one", codigo: "DON-ONE", estado: "PUBLICADA" }, ...Array.from({ length: 100 }, (_, index) => ({ id: `donation-page-${index}`, codigo: `DON-PAGE-${index}`, estado: "PUBLICADA" }))],
+        "/v1/admin/usuarios": [{ id: "user-one", nombres: "Ana", estado: "PENDIENTE" }],
+        "/v1/admin/verificaciones?estado=PENDIENTE": [
+          { id: "recent", estado: "PENDIENTE", created_at: new Date(Date.now() - 86400000).toISOString(), usuario: { nombres: "Solicitud reciente" } },
+          { id: "old", estado: "PENDIENTE", created_at: "2020-01-01T00:00:00Z", usuario: { nombres: "Solicitud antigua" } },
+        ],
+        "/v1/admin/verificaciones?estado=APROBADA": [],
+      };
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.getByRole("link", { name: "Abrir notificaciones, 2 sin leer", exact: true }).waitFor();
+      await page.getByRole("link", { name: /Abrir notificaciones/ }).click();
+      await page.getByText("Tienes un voluntario pendiente reciente", { exact: true }).waitFor();
+      assert.equal(await page.locator(".activity-list").getByText("Solicitud antigua", { exact: true }).count(), 0);
+      state.activityRows["/v1/rutas"][0].estado = "COMPLETADA";
+      state.activityRows["/v1/donaciones"].at(-1).estado = "EXPIRADA";
+      state.activityRows["/v1/admin/usuarios"][0].estado = "ACTIVO";
+      state.activityRows["/v1/donaciones"].push({ id: "new-donation", codigo: "DON-NEW", estado: "PUBLICADA" });
+      state.activityRows["/v1/admin/usuarios"].push({ id: "new-user", nombres: "Usuario nuevo", estado: "ACTIVO" });
+      state.activityRows["/v1/admin/verificaciones?estado=APROBADA"].push({ id: "approved", estado: "APROBADA", usuario: { nombres: "Voluntario aprobado" } });
+      state.activityRows["/v1/admin/verificaciones?estado=PENDIENTE"].push({ id: "new-pending", estado: "PENDIENTE", usuario: { nombres: "Postulante nuevo" } });
+      await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+      for (const title of ["Una ruta ha finalizado", "Una donación se ha vencido", "Se aprobó un usuario", "Se ha creado una nueva donación", "Se ha creado un nuevo usuario", "Se aceptó a un nuevo voluntario", "Hay un nuevo voluntario pendiente de aprobación"]) await page.getByText(title, { exact: true }).waitFor();
+      await page.getByText("Donación publicada", { exact: true }).waitFor();
+      assert.equal(await page.locator(".activity-list > li").count(), 9);
+      const refreshed = page.waitForResponse((response) => response.url().includes("/donaciones?limite=100&desplazamiento=100"));
+      await page.reload();
+      await page.getByText("Tienes un voluntario pendiente reciente", { exact: true }).waitFor();
+      await refreshed;
+      await page.getByText("Donación publicada", { exact: true }).waitFor();
+      assert.equal(await page.locator(".activity-list > li").count(), 9);
+    });
+    await scenario("notificaciones unificadas: fuentes, búsqueda, lectura y errores", async ({ page, state, login }) => {
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.evaluate(({ userId }) => {
+        localStorage.setItem(`findfood:activity:${userId}`, JSON.stringify([
+          { id: "user:one", titulo: "Usuario creado uno", cuerpo: "Primer usuario", href: "#/usuarios", created_at: "2026-01-02T00:00:00Z", leida_at: null },
+          { id: "user:two", titulo: "Usuario creado dos", cuerpo: "Segundo usuario", href: "#/usuarios", created_at: "2026-01-01T00:00:00Z", leida_at: null },
+        ]));
+        window.dispatchEvent(new Event("storage"));
+      }, { userId: id });
+      await page.getByRole("link", { name: "Abrir notificaciones, 3 sin leer", exact: true }).click();
+      const panel = page.getByRole("dialog", { name: "Notificaciones", exact: true });
+      await panel.getByText("Donación publicada", { exact: true }).waitFor();
+      assert.equal(await panel.locator(".activity-list").count(), 1);
+      assert.equal(await panel.locator(".activity-list > li").count(), 3);
+      assert.equal(await panel.getByText("Actividad detectada", { exact: true }).count(), 0);
+      await panel.getByLabel("Buscar notificaciones", { exact: true }).fill("Segundo usuario");
+      assert.equal(await panel.locator(".activity-list > li").count(), 1);
+      await panel.getByRole("button", { name: "Marcar leída", exact: true }).click();
+      await page.getByRole("link", { name: "Abrir notificaciones, 2 sin leer", exact: true }).waitFor();
+      await panel.getByLabel("Buscar notificaciones", { exact: true }).fill("");
+      await panel.getByRole("button", { name: "Marcar todas como leídas", exact: true }).click();
+      await page.getByRole("link", { name: "Abrir notificaciones, 0 sin leer", exact: true }).waitFor();
+      assert.equal(await panel.locator(".is-unread").count(), 0);
+      state.notificationRows = Array.from({ length: 101 }, (_, index) => ({ id: `remote-${index}`, titulo: `Aviso remoto ${index}`, cuerpo: "Mensaje remoto", created_at: "2026-01-03T00:00:00Z" }));
+      await panel.getByRole("button", { name: "Actualizar lista", exact: true }).click();
+      await panel.getByText("103 notificaciones", { exact: true }).waitFor();
+      await panel.getByLabel("Buscar notificaciones", { exact: true }).fill("Aviso remoto 100");
+      await panel.getByText("Aviso remoto 100", { exact: true }).waitFor();
+      state.notificationFailure = true;
+      await panel.getByLabel("Buscar notificaciones", { exact: true }).fill("");
+      await panel.getByRole("button", { name: "Actualizar lista", exact: true }).click();
+      await panel.getByRole("alert").filter({ hasText: "Notificaciones no disponibles" }).waitFor();
+      await panel.getByLabel("Buscar notificaciones", { exact: true }).fill("Usuario creado");
+      assert.equal(await panel.locator(".activity-list > li").count(), 2);
+    });
     await scenario("credenciales incorrectas", async ({ page, state }) => {
       await page.goto(base);
       await page.getByLabel("Correo electrónico *").fill(user.email);
@@ -923,12 +1047,16 @@ const jwt = () =>
           .filter({ hasText: "Ya existe una cuenta" })
           .waitFor();
         state.creationFailure = false;
+        assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("findfood:activity:")).flatMap((key) => JSON.parse(localStorage.getItem(key))).filter((notice) => notice.titulo === "Se ha creado un nuevo usuario").length), 0);
         await panel
           .getByRole("button", { name: "Crear usuario", exact: true })
           .click();
         await panel
           .getByText("Usuario creado: nuevo@example.test", { exact: true })
           .waitFor();
+        // The list fixture does not include the created account. The successful
+        // POST must still publish one immediate notice without polling.
+        assert.equal(await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("findfood:activity:")).flatMap((key) => JSON.parse(localStorage.getItem(key))).filter((notice) => notice.titulo === "Se ha creado un nuevo usuario").length), 1);
         assert.equal(
           await panel
             .getByLabel("Contraseña temporal", { exact: false })
@@ -944,6 +1072,12 @@ const jwt = () =>
           .getByRole("button", { name: "Cerrar", exact: true })
           .click();
         await panel.waitFor({ state: "hidden" });
+        await page.getByRole("link", { name: /Abrir notificaciones/ }).click();
+        await page.getByText("Se ha creado un nuevo usuario", { exact: true }).waitFor();
+        await page.locator(".activity-list").getByText("Nuevo Asesor", { exact: true }).waitFor();
+        assert.equal(await page.locator(".activity-list").getByText("Se ha creado un nuevo usuario", { exact: true }).count(), 1);
+        await page.keyboard.press("Escape");
+        await page.getByRole("dialog").waitFor({ state: "hidden" });
         await page
           .getByRole("button", { name: "Ver", exact: true })
           .first()
@@ -1080,7 +1214,17 @@ const jwt = () =>
         await page
           .getByRole("heading", { name: "Voluntarios candidatos", exact: true })
           .waitFor();
-        await page.getByText("Nora", { exact: true }).waitFor();
+        await page.locator(".assignment-candidates").getByRole("heading", { name: "Nora", exact: true }).waitFor();
+        await page.getByText("La API entrega el puntaje total, pero no incluye su desglose por criterio.", { exact: true }).waitFor();
+        assert.equal(await page.locator(".assignment-summary").getByText("12 kg", { exact: true }).count(), 1);
+        if (process.env.TEST_SCREENSHOT_DIR) {
+          await page.screenshot({ path: require("node:path").join(process.env.TEST_SCREENSHOT_DIR, "assignment-desktop.png"), fullPage: true });
+          await page.setViewportSize({ width: 390, height: 844 });
+          await page.locator(".sidebar").waitFor({ state: "hidden" });
+          await page.screenshot({ path: require("node:path").join(process.env.TEST_SCREENSHOT_DIR, "assignment-mobile.png"), fullPage: true });
+          assert(await page.locator(".assignment-live").evaluate((element) => element.scrollWidth <= element.clientWidth));
+          await page.setViewportSize({ width: 1280, height: 720 });
+        }
         assert(
           state.requests.some((r) =>
             r.path.endsWith(`/donaciones/${id}/candidatos`),
@@ -1221,7 +1365,7 @@ const jwt = () =>
             exact: true,
           })
           .click();
-        await submit();
+        await page.getByRole("link", { name: "Abrir notificaciones, 0 sin leer", exact: true }).waitFor();
         await page.keyboard.press("Escape");
         assert(state.noticesRead);
       },
@@ -1338,6 +1482,9 @@ const jwt = () =>
           .getByRole("button", { name: "Aprobar voluntario", exact: true })
           .click();
         await submit();
+        await page.getByRole("link", { name: /Abrir notificaciones/ }).click();
+        await page.getByText("Se aceptó a un nuevo voluntario", { exact: true }).waitFor();
+        await page.keyboard.press("Escape");
         await page.goto(`${base}/#/usuarios`);
         await page
           .getByRole("button", { name: "Ver", exact: true })
@@ -1397,9 +1544,10 @@ const jwt = () =>
         await submit();
         await page.getByRole("link", { name: /Abrir notificaciones/ }).click();
         await page
+          .locator(".activity-list > li").filter({ hasText: "Donación publicada" })
           .getByRole("button", { name: "Marcar leída", exact: true })
           .click();
-        await submit();
+        await page.locator(".activity-list > li").filter({ hasText: "Donación publicada" }).getByText("Leída", { exact: true }).waitFor();
         await page.keyboard.press("Escape");
         assert(state.newMutations.some((r) => r.path.endsWith("/leer")));
         // Un ADMIN no hereda las operaciones exclusivas de ASESOR_BANCO.
