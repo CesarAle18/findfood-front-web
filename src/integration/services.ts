@@ -1,5 +1,13 @@
 import { apiRequest } from "./http";
-import type { ApiUser, Kpis, Page, Profile, UserFilters } from "./contracts";
+import type {
+  ApiUser,
+  GeoPlace,
+  GeoSuggestion,
+  Kpis,
+  Page,
+  Profile,
+  UserFilters,
+} from "./contracts";
 export const profileService = {
   get: (signal?: AbortSignal) => apiRequest<Profile>("/me", { signal }),
   update: (body: { nombres: string; apellidos: string; telefono: string }) =>
@@ -40,4 +48,18 @@ export const userService = {
 };
 export const dashboardService = {
   get: (signal?: AbortSignal) => apiRequest<Kpis>("/kpis/resumen", { signal }),
+};
+// Búsqueda de direcciones con Google a través de la API (la llave del servidor no sale de ella).
+// Sin Google responde 503 geo-no-disponible. `sesion` es un UUID por búsqueda, hasta elegir lugar.
+export const GEO_UNAVAILABLE = "geo-no-disponible";
+export const geoService = {
+  suggest: (q: string, sesion: string, signal?: AbortSignal) =>
+    apiRequest<{ sugerencias: GeoSuggestion[] }>(
+      `/geo/autocompletar?${new URLSearchParams({ q, sesion })}`,
+      { signal },
+    ),
+  place: (placeId: string, sesion: string) =>
+    apiRequest<GeoPlace>(
+      `/geo/lugares/${encodeURIComponent(placeId)}?${new URLSearchParams({ sesion })}`,
+    ),
 };

@@ -4,7 +4,7 @@
 Aplicación web de operación para el banco de alimentos. React 19, Vite 8 y TypeScript, a partir del repositorio findfood-front-web. Usuarios de referencia: administrador y personal que gestiona donaciones, voluntarios, rutas, recepción e inventario.
 
 ## Alcance autorizado
-Frontend basado en Mock Up Proyecto de grado.fig. Navegación de demostración, filtros y selección locales, formularios editables sin persistencia. No hay backend, autenticación, autorizaciones, correo, almacenamiento, Google Maps, GPS, generación de rutas ni exportación real de reportes. Las acciones de negocio están deshabilitadas. Los datos son ejemplos del diseño, con estados ilustrativos. No existe validación de negocio definitiva.
+Frontend basado en Mock Up Proyecto de grado.fig. Navegación de demostración, filtros y selección locales, formularios editables sin persistencia. No hay backend, autenticación, autorizaciones, correo, almacenamiento, GPS, generación de rutas ni exportación real de reportes. (Actualizado: en modo `api` el panel usa Google Maps para el mapa de rutas y para buscar la dirección de un almacén nuevo; ver docs/conexion-web.md.) Las acciones de negocio están deshabilitadas. Los datos son ejemplos del diseño, con estados ilustrativos. No existe validación de negocio definitiva.
 
 ## Dirección visual
 Modo Operate. Mantener la identidad verde, Inter, logotipo original, fondo muy claro, sidebar blanca, tablas de gestión y paneles laterales. Vista principal de referencia 1440 × 1024. La web administrativa y la app móvil son proyectos separados.

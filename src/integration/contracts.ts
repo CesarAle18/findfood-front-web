@@ -53,6 +53,20 @@ export interface Kpis {
     kg_rechazados: number;
   }[];
 }
+export interface Point {
+  lat: number;
+  lng: number;
+}
+export interface GeoSuggestion {
+  place_id: string;
+  principal: string;
+  secundario: string | null;
+}
+export interface GeoPlace {
+  place_id: string;
+  direccion: string;
+  ubicacion: Point;
+}
 export interface Problem {
   status: number;
   type: string;

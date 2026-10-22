@@ -23,7 +23,7 @@ Iniciar sesión abre el dashboard sin autenticar. El menú lateral conecta los m
 
 En las tablas, «Ver» abre detalles, «Editar» abre un formulario y los botones «Nuevo» muestran el formulario correspondiente. Los filtros y búsquedas funcionan con datos de ejemplo. En Usuarios, «Voluntarios pendientes» permite revisar postulantes y abrir su detalle. Configuración permite mover ponderaciones y cambiar las paradas para revisar estados visuales. No se guarda ningún cambio.
 
-Las acciones que necesitan servicios están deshabilitadas: crear, guardar, aprobar/rechazar, enviar instrucciones, ofertar, confirmar recepción, exportar reporte y actualizar contraseña. No se solicitan cámara, ubicación ni datos externos. Las fotografías son placeholders y los mapas esquemas sin geolocalización.
+Las acciones que necesitan servicios están deshabilitadas: crear, guardar, aprobar/rechazar, enviar instrucciones, ofertar, confirmar recepción, exportar reporte y actualizar contraseña. No se solicitan cámara, ubicación ni datos externos. Las fotografías son placeholders y los mapas de las páginas demo son esquemas sin geolocalización. En modo `api`, Rutas y «Nuevo almacén» usan Google Maps (ver docs/conexion-web.md).
 
 ## Estructura
 

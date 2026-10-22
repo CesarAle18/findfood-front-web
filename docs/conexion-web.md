@@ -165,7 +165,39 @@ Validación con respuestas simuladas: lectura en donaciones, recepciones, incide
 
 ## Mapa de rutas y distribución de asignaciones
 
-Rutas muestra un mapa en la pantalla principal con selector sobre las rutas de la página y del filtro actuales. Consulta GET /rutas/:id al cambiar la selección. Las paradas se ordenan por orden y se ubican mediante lat/lng válidos; las que no incluyen coordenadas se omiten del mapa y se informa. Si no hay coordenadas, se muestra un estado vacío. El mapa permite acercar, alejar y centrar, con cartografía OpenStreetMap y atribución visible. Se respeta la caché del navegador; solo se solicitan las teselas visibles (https://operations.osmfoundation.org/policies/tiles/).
+Rutas muestra un mapa en la pantalla principal con selector sobre las rutas de la página y del filtro actuales. Consulta GET /rutas/:id al cambiar la selección. Las paradas se ordenan por orden y se ubican mediante lat/lng válidos; las que no incluyen coordenadas se omiten del mapa y se informa. Si no hay coordenadas, se muestra un estado vacío.
+
+- **Con `VITE_GOOGLE_MAPS_API_KEY`:**
+  - El mapa es Google Maps (`@vis.gl/react-google-maps`, `src/integration/RouteMap.tsx`), con marcadores numerados y el botón «Centrar ruta».
+  - Con `VITE_GOOGLE_MAPS_MAP_ID` usa marcadores avanzados; sin él, marcadores clásicos.
+  - La llave debe ser exclusiva del panel: solo *Maps JavaScript API*, restringida por referrer HTTP. Nunca debe ser la llave del servidor de la API.
+- **Sin llave:** se mantiene el respaldo anterior. Usa cartografía OpenStreetMap con atribución visible, permite acercar, alejar y centrar, respeta la caché del navegador y solo solicita las teselas visibles (https://operations.osmfoundation.org/policies/tiles/).
+
+### Ubicación en vivo del voluntario
+
+Con el mapa de Google y la ruta EN_CURSO, el panel escucha el canal privado `ruta:<id>` de Supabase Realtime (`src/integration/live-position.ts`). Dibuja el vehículo deslizándose entre posiciones, con la flecha según el rumbo, y muestra la hora de la última posición.
+
+- **Contrato del evento `posicion`:** `{ lat, lng, rumbo, velocidad_kmh, precision_m, at }`.
+- **Permisos:** los dan las políticas de `realtime.messages` de la API (§9.2). Solo el voluntario de la ruta emite; escucha el personal activo sin contraseña temporal pendiente.
+- **Persistencia:** las posiciones no se guardan.
+
+Para probar sin teléfono, `scripts/simular-ruta.mjs` inicia sesión como el voluntario y emite posiciones a lo largo de la geometría de la ruta, o de sus paradas en orden si no hay geometría:
+
+```bash
+SIM_EMAIL=voluntario@correo SIM_PASSWORD='...' npm run simular:ruta            # su ruta EN_CURSO
+SIM_EMAIL=... SIM_PASSWORD='...' SIM_KMH=40 SIM_ACELERAR=5 npm run simular:ruta -- <ruta_id>
+```
+
+Si el canal rechaza la conexión, revisa que las migraciones con las políticas de Realtime estén aplicadas en el proyecto de Supabase.
+
+### Dirección de un almacén nuevo
+
+En «Nuevo almacén», el campo Dirección sugiere direcciones de Google mediante la API (`GET /geo/autocompletar` y `GET /geo/lugares/:placeId`, con un UUID de sesión por búsqueda). La llave de servidor nunca llega al navegador.
+
+- **Al elegir una sugerencia:** se llenan la dirección y la latitud/longitud, con seis decimales.
+- **Con llave del panel:** aparece un mini-mapa con un pin arrastrable para llevar el punto a la entrada exacta.
+- **Por qué importa el punto:** la ubicación del almacén decide a qué sede se dirige cada donación (la más cercana).
+- **Si la API responde 503 `geo-no-disponible`:** se informa al usuario, y la dirección y las coordenadas se escriben a mano como antes.
 
 Cuando el detalle incluye geometria o geometry de tipo GeoJSON LineString, se dibuja ese trazado. De lo contrario, la línea discontinua conecta las paradas e indica que la API no entrega el recorrido GPS. No se calcula un recorrido por calles ni se interpreta la conexión entre paradas como un historial de posiciones. Para visualizar el recorrido efectivamente realizado, el backend debe incluir esa geometría en el detalle.
 

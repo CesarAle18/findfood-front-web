@@ -10,7 +10,7 @@ export interface Source {
 export interface Input {
   key: string;
   label: string;
-  type?: "number" | "select" | "checkbox" | "textarea" | "multi";
+  type?: "number" | "select" | "checkbox" | "textarea" | "multi" | "place";
   required?: boolean;
   min?: number;
   max?: number;
@@ -290,7 +290,8 @@ export function createAction(path: string): Action | null {
       method: "POST",
       fields: [
         str("nombre", "Nombre", 2, 80),
-        str("direccion", "Dirección", 5, 255),
+        // Sugerencias de Google: llena latitud y longitud (ver PlaceField).
+        { ...str("direccion", "Dirección", 5, 255), type: "place" },
         ...location,
         choice("tipo", "Almacenamiento", thermal),
         num("capacidad_kg", "Capacidad (kg)", 1),

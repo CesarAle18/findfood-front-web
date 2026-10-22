@@ -25,6 +25,9 @@ const devServer = process.env.TEST_WEB_URL
           VITE_API_URL: "http://127.0.0.1:4300/v1",
           VITE_SUPABASE_URL: "http://127.0.0.1:4301",
           VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test_only",
+          // Sin Google aunque .env.local tenga la llave: el mapa de rutas usa su respaldo OSM.
+          VITE_GOOGLE_MAPS_API_KEY: "",
+          VITE_GOOGLE_MAPS_MAP_ID: "",
         },
       },
     );
@@ -507,6 +510,32 @@ const jwt = () =>
               : {}),
           });
       }
+      if (url.pathname === "/v1/geo/autocompletar")
+        return state.geoUnavailable
+          ? fulfill(
+              route,
+              {
+                type: "geo-no-disponible",
+                title: "La búsqueda de direcciones no está disponible",
+                status: 503,
+              },
+              503,
+            )
+          : fulfill(route, {
+              sugerencias: [
+                {
+                  place_id: "ChIJ-sede",
+                  principal: "Calle 12 #34-56",
+                  secundario: "Bogotá, Colombia",
+                },
+              ],
+            });
+      if (url.pathname.startsWith("/v1/geo/lugares/"))
+        return fulfill(route, {
+          place_id: "ChIJ-sede",
+          direccion: "Cl. 12 #34-56, Bogotá, Colombia",
+          ubicacion: { lat: 4.6012345678, lng: -74.0712345678 },
+        });
       if (url.pathname.endsWith("/candidatos"))
         return fulfill(route, [
           {
@@ -1269,6 +1298,69 @@ const jwt = () =>
           .getByRole("button", { name: "Reintentar", exact: true })
           .click();
         await page.getByText("DON-REAL", { exact: true }).waitFor();
+      },
+    );
+    await scenario(
+      "nuevo almacén: sugerencias de Google llenan dirección y coordenadas",
+      async ({ page, state, login }) => {
+        await login();
+        await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+        await page.goto(`${base}/#/almacenes`);
+        await page
+          .getByRole("button", { name: "Nuevo almacén", exact: true })
+          .click();
+        let panel = page.getByRole("dialog").last();
+        await panel.getByLabel("Dirección", { exact: true }).fill("Calle 12 34");
+        await panel
+          .getByRole("button", { name: /Calle 12 #34-56/ })
+          .click();
+        // La lista se cierra cuando el lugar elegido ya llenó el formulario.
+        await panel.locator(".place-suggestions").waitFor({ state: "detached" });
+        assert.equal(
+          await panel.getByLabel("Dirección", { exact: true }).inputValue(),
+          "Cl. 12 #34-56, Bogotá, Colombia",
+        );
+        // Seis decimales: el step de los campos numéricos no admite más.
+        assert.equal(await panel.getByLabel("Latitud").inputValue(), "4.601235");
+        assert.equal(await panel.getByLabel("Longitud").inputValue(), "-74.071235");
+        const searches = state.requests.filter(
+          (r) => r.path === "/v1/geo/autocompletar",
+        );
+        assert.equal(searches.length, 1);
+        const place = state.requests.find((r) =>
+          r.path.startsWith("/v1/geo/lugares/"),
+        );
+        assert.equal(place.params.sesion, searches[0].params.sesion);
+        // Sin llave de Google en el panel no hay mini-mapa: el punto se corrige a mano.
+        assert.equal(await panel.locator(".place-map").count(), 0);
+        await panel.getByLabel("Nombre", { exact: true }).fill("Sede Google");
+        await panel.getByLabel("Almacenamiento").selectOption("SECO");
+        await panel.getByLabel("Capacidad (kg)").fill("500");
+        await panel.getByRole("button", { name: "Confirmar", exact: true }).click();
+        await page.getByRole("dialog").last().waitFor({ state: "hidden" });
+        const created = state.requests.find(
+          (r) => r.path === "/v1/almacenes" && r.method === "POST",
+        );
+        assert.deepEqual(JSON.parse(created.body), {
+          nombre: "Sede Google",
+          direccion: "Cl. 12 #34-56, Bogotá, Colombia",
+          ubicacion: { lat: 4.601235, lng: -74.071235 },
+          tipo: "SECO",
+          capacidad_kg: 500,
+        });
+
+        state.geoUnavailable = true;
+        await page
+          .getByRole("button", { name: "Nuevo almacén", exact: true })
+          .click();
+        panel = page.getByRole("dialog").last();
+        await panel.getByLabel("Dirección", { exact: true }).fill("Carrera 7");
+        await panel
+          .getByText(
+            "La búsqueda de direcciones no está disponible: escribe la dirección y las coordenadas.",
+            { exact: true },
+          )
+          .waitFor();
       },
     );
     await scenario(

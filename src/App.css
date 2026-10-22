@@ -1463,6 +1463,19 @@ fieldset.form-stack {
 .route-map-canvas { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: #e6eee8; }
 .route-map-canvas svg { display: block; width: 100%; height: auto; }
 .map-attribution { position: absolute; right: 0; bottom: 0; padding: 3px 8px; background: #fffffff0; color: #175b48; font-size: 11px; }
+.route-map-canvas.google-map { height: 360px; }
+.map-pin { display: grid; place-items: center; width: 30px; height: 30px; border: 3px solid #fff; border-radius: 50%; background: var(--green); color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 1px 4px #17332a40; }
+.map-vehicle { display: grid; place-items: center; width: 26px; height: 26px; border: 3px solid #fff; border-radius: 50%; background: #1f5fbf; color: #fff; font-size: 12px; line-height: 1; box-shadow: 0 0 0 6px #1f5fbf33, 0 1px 4px #17332a40; transition: transform 300ms var(--ease-out); }
+.live-status { color: var(--green); font-weight: 600; }
+.live-status::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: currentColor; animation: live-pulse 1.6s ease-in-out infinite; }
+@keyframes live-pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .live-status::before { animation: none; } .map-vehicle { transition: none; } }
+.next-stop { color: var(--ink); font-weight: 500; }
+.place-suggestions { margin: 0; padding: 4px; list-style: none; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.place-suggestions button { display: grid; gap: 2px; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.place-suggestions button:hover, .place-suggestions button:focus-visible { background: var(--soft); }
+.place-suggestions span { color: var(--muted); font-size: 12px; }
+.place-map > div:first-child { height: 220px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; }
 .route-stop-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px 32px; padding-left: 24px; }
 .route-stop-list span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
 .assignment-live { display: grid; gap: 24px; }
