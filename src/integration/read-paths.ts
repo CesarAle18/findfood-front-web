@@ -1,7 +1,5 @@
-export const readPaths = [
+﻿export const readPaths = [
   "/donaciones",
-  "/distribuciones",
-  "/incidencias",
   "/alertas",
   "/rutas",
   "/recepciones",
@@ -14,3 +12,4 @@ export const readPaths = [
   "/asignaciones",
   "/recepcion",
 ];
+

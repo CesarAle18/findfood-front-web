@@ -1,4 +1,4 @@
-import type { Role } from "./contracts";
+﻿import type { Role } from "./contracts";
 export type Values = Record<string, string>;
 export type Row = Record<string, unknown>;
 export interface Source {
@@ -10,7 +10,7 @@ export interface Source {
 export interface Input {
   key: string;
   label: string;
-  type?: "number" | "select" | "checkbox" | "textarea" | "multi" | "place";
+  type?: "number" | "select" | "checkbox" | "textarea" | "multi";
   required?: boolean;
   min?: number;
   max?: number;
@@ -104,14 +104,19 @@ export function recordActions(path: string, row: Row): Action[] {
         roles: staff,
         endpoint: prefix,
         method: "PATCH",
+        description: "La capacidad en kg corresponde al régimen de esta sede.",
         fields: [
           str("nombre", "Nombre", 2, 80),
+          str("direccion", "Dirección", 5, 255),
+          choice("tiene_refrigeracion", "¿La sede tiene refrigeración?", [["true", "Sí"], ["false", "No"]]),
           num("capacidad_kg", "Capacidad (kg)", 1),
           bool("activo", "Almacén activo"),
         ],
-        initial: initial(row, ["nombre", "capacidad_kg", "activo"]),
+        initial: { ...initial(row, ["nombre", "direccion", "capacidad_kg", "activo"]), tiene_refrigeracion: String(row.tipo === "REFRIGERADO") },
         body: (v) => ({
           nombre: v.nombre.trim(),
+          ...(v.direccion.trim() !== String(row.direccion ?? "") ? { direccion: v.direccion.trim() } : {}),
+          ...((v.tiene_refrigeracion === "true" ? "REFRIGERADO" : "SECO") !== row.tipo ? { tipo: v.tiene_refrigeracion === "true" ? "REFRIGERADO" : "SECO" } : {}),
           capacidad_kg: Number(v.capacidad_kg),
           activo: v.activo === "true",
         }),
@@ -281,6 +286,16 @@ export function recordActions(path: string, row: Row): Action[] {
   return [];
 }
 export function createAction(path: string): Action | null {
+  if (path === "/rutas") return {
+    key: "route-create", label: "Planificar ruta de flota", roles: advisor, endpoint: "/rutas", method: "POST",
+    description: "Selecciona donaciones publicadas o expiradas. La API verifica la flota, la sede, las ventanas y el límite de paradas, y calcula el recorrido.",
+    fields: [{ key: "donacion_ids", label: "Donaciones de la ruta", type: "multi", required: true, source: { endpoint: "/donaciones", states: ["PUBLICADA", "EXPIRADA"] } }],
+    body: (v) => {
+      const ids: string[] = JSON.parse(v.donacion_ids || "[]");
+      if (!ids.length || ids.length > 5) throw new Error("Selecciona entre 1 y 5 donaciones. Se aplicará el límite configurado del banco.");
+      return { donacion_ids: ids };
+    },
+  };
   if (path === "/almacenes")
     return {
       key: "warehouse-create",
@@ -290,8 +305,7 @@ export function createAction(path: string): Action | null {
       method: "POST",
       fields: [
         str("nombre", "Nombre", 2, 80),
-        // Sugerencias de Google: llena latitud y longitud (ver PlaceField).
-        { ...str("direccion", "Dirección", 5, 255), type: "place" },
+        str("direccion", "Dirección", 5, 255),
         ...location,
         choice("tipo", "Almacenamiento", thermal),
         num("capacidad_kg", "Capacidad (kg)", 1),
@@ -341,24 +355,27 @@ export function bankAction(row: Row = {}): Action {
       "nombre",
       "direccion",
       "ciudad",
-      "lat",
-      "lng",
       "tiene_flota_propia",
     ]),
     fields: [
       str("nombre", "Nombre", 2, 150),
       str("direccion", "Dirección", 5, 255),
       str("ciudad", "Ciudad", 1, 80),
-      ...location,
       bool("tiene_flota_propia", "Flota propia"),
     ],
-    body: (v) => ({
+    body: (v) => {
+      const lat = Number(row.lat), lng = Number(row.lng);
+      if (row.lat == null || row.lng == null || row.lat === "" || row.lng === "" || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+        throw new Error("No se pudo recuperar la ubicación guardada del banco. Actualiza la información antes de guardar.");
+      }
+      return {
       nombre: v.nombre.trim(),
       direccion: v.direccion.trim(),
       ciudad: v.ciudad.trim(),
-      ubicacion: { lat: Number(v.lat), lng: Number(v.lng) },
+      ubicacion: { lat, lng },
       tiene_flota_propia: v.tiene_flota_propia === "true",
-    }),
+      };
+    },
   };
 }
 export function parameterAction(row: Row): Action {
@@ -390,6 +407,7 @@ export function foodAction(row?: Row): Action {
           "tipo_almacenamiento",
           "perecedero",
           "activo",
+          "vida_util_dias",
         ])
       : undefined,
     fields: [
@@ -408,9 +426,11 @@ export function foodAction(row?: Row): Action {
       bool("requiere_refrigeracion", "Requiere refrigeración"),
       choice("tipo_almacenamiento", "Almacenamiento", thermal),
       bool("perecedero", "Perecedero"),
+      { ...num("vida_util_dias", "Vida útil (días)", 1), required: false, step: 1 },
       ...(row ? [bool("activo", "Activo")] : []),
     ],
     body: (v) => ({
+      ...(v.vida_util_dias ? { vida_util_dias: Number(v.vida_util_dias) } : {}),
       nombre: v.nombre.trim(),
       requiere_refrigeracion: v.requiere_refrigeracion === "true",
       tipo_almacenamiento: v.tipo_almacenamiento,
@@ -425,3 +445,5 @@ export function foodAction(row?: Row): Action {
     }),
   };
 }
+
+

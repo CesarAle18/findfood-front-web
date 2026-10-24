@@ -1,13 +1,11 @@
-export const integrationConfig = {
+﻿export const integrationConfig = {
+  mapsKey: String(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "").trim(),
+  mapsId: String(import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || "").trim(),
   mode: import.meta.env.VITE_DATA_MODE || "api",
   apiUrl: (import.meta.env.VITE_API_URL || "").replace(/\/+$/, ""),
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || "",
   supabaseKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "",
-  // Opcionales: sin llave los mapas muestran un aviso y las coordenadas se escriben a mano.
-  mapsKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-  mapId: import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || "",
 };
-export const mapsEnabled = () => Boolean(integrationConfig.mapsKey);
 export function configurationError(): string | null {
   if (integrationConfig.mode === "demo") return null;
   if (integrationConfig.mode !== "api")
@@ -40,3 +38,4 @@ export function configurationError(): string | null {
   }
   return null;
 }
+

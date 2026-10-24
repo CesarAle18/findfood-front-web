@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import type { Profile } from "./contracts";
-import { errorMessage } from "./http";
+import { ApiError, errorMessage } from "./http";
 import { profileService } from "./services";
 import { SessionContext } from "./session-context";
 import { supabase } from "./supabase";
@@ -26,6 +26,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (revision.current === current) setProfile(next);
       return next;
     } catch (err) {
+      if (err instanceof ApiError && err.type === "acceso-panel-denegado" && revision.current === current) {
+        sessionStorage.setItem("findfood:panel-denied", err.message);
+        await supabase!.auth.signOut({ scope: "local" });
+        window.location.hash = "/login";
+        throw err;
+      }
       if (revision.current === current) {
         setProfile(null);
         setError(errorMessage(err));
@@ -123,3 +129,4 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     </SessionContext.Provider>
   );
 }
+

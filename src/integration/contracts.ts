@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "ASESOR_BANCO" | "DONANTE" | "VOLUNTARIO";
+﻿export type Role = "ADMIN" | "ASESOR_BANCO" | "DONANTE" | "VOLUNTARIO";
 export type UserStatus =
   "ACTIVO" | "INACTIVO" | "SUSPENDIDO" | "PENDIENTE_CONFIRMACION";
 export interface Profile {
@@ -41,8 +41,8 @@ export interface UserFilters {
 export interface Kpis {
   desde: string;
   hasta: string;
-  donaciones: { creadas: number; recibidas: number; kg_recuperados: number };
-  asignacion: { ofertas: number; tasa_aceptacion: number | null };
+  donaciones: { creadas: number; recibidas: number; kg_recuperados: number; publicadas?: number; rechazadas?: number; expiradas?: number; canceladas?: number; minutos_hasta_asignacion?: number | null; minutos_ciclo_completo?: number | null };
+  asignacion: { ofertas: number; tasa_aceptacion: number | null; tasa_expiracion?: number | null; ofertas_por_donacion?: number | null };
   inventario: { kg_merma: number; kg_distribuidos: number };
   por_sede: {
     id: string;
@@ -52,20 +52,6 @@ export interface Kpis {
     kg_recibidos: number;
     kg_rechazados: number;
   }[];
-}
-export interface Point {
-  lat: number;
-  lng: number;
-}
-export interface GeoSuggestion {
-  place_id: string;
-  principal: string;
-  secundario: string | null;
-}
-export interface GeoPlace {
-  place_id: string;
-  direccion: string;
-  ubicacion: Point;
 }
 export interface Problem {
   status: number;
@@ -86,3 +72,4 @@ export const statusLabels: Record<UserStatus, string> = {
   SUSPENDIDO: "Suspendido",
   PENDIENTE_CONFIRMACION: "Pendiente de confirmación",
 };
+

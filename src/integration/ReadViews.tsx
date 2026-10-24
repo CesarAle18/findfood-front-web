@@ -1,3 +1,6 @@
+﻿import { ReceptionInbox } from "./ReceptionInbox";
+import { RouteExecution } from "./RouteExecution";
+import { useDonationRealtime } from "./realtime";
 import { useState } from "react";
 import { Badge, Card, Drawer, Icon } from "../components/ui";
 import { useRead } from "./read";
@@ -8,9 +11,10 @@ import { textValue, fieldValue, at } from "./read-format";
 import { ActionButtons } from "./ActionForm";
 import { createAction, recordActions } from "./actions";
 import { SettingsLive } from "./SettingsLive";
-import { ReceptionLive, DistributionCreate } from "./StockForms";
+import { ReceptionLive } from "./StockForms";
 import { EvidencePanel } from "./EvidencePanel";
-import { DashboardLive } from "./DashboardLive";
+import { AuditLive } from "./AuditLive";
+import { InventoryLive } from "./InventoryLive";
 import { RouteMap } from "./RouteMap";
 import { AssignmentLive } from "./AssignmentLive";
 import { NotificationsList } from "./NotificationsList";
@@ -30,31 +34,6 @@ interface ListConfig {
   donation?: boolean;
 }
 const configs: Record<string, ListConfig> = {
-  "/distribuciones": {
-    title: "Distribuciones",
-    endpoint: "/distribuciones",
-    paginated: true,
-    detail: "/distribuciones",
-    columns: [
-      ["codigo", "Código"],
-      ["estado", "Estado"],
-      ["nombre_destino", "Destino"],
-      ["numero_beneficiarios", "Beneficiarios"],
-      ["fecha_distribucion", "Fecha"],
-    ],
-  },
-  "/incidencias": {
-    title: "Incidencias",
-    endpoint: "/incidencias",
-    paginated: true,
-    detail: "/incidencias",
-    columns: [
-      ["descripcion", "Descripción"],
-      ["estado", "Estado"],
-      ["nivel", "Nivel"],
-      ["created_at", "Fecha"],
-    ],
-  },
   "/alertas": {
     title: "Alertas",
     endpoint: "/alertas?solo_abiertas=false",
@@ -184,7 +163,7 @@ function Records({ config }: { config: ListConfig }) {
     (config.paginated
       ? `${config.endpoint.includes("?") ? "&" : "?"}limite=20&desplazamiento=${offset}`
       : "");
-  const read = useRead<Row[] | Page<Row>>(endpoint, path === "/me/notificaciones" ? 15000 : 0);
+  const read = useRead<Row[] | Page<Row>>(endpoint, ["/me/notificaciones", "/donaciones", "/rutas"].includes(path) ? 15000 : 0);
   const data = read.data;
   const rows = Array.isArray(data) ? data : data?.datos || [];
   const total = Array.isArray(data) ? data.length : data?.total || 0;
@@ -231,28 +210,6 @@ function Records({ config }: { config: ListConfig }) {
             </p>
           )}
         </Card>
-      )}
-      {config.endpoint.startsWith("/admin/usuarios?rol=") && (
-        <p className="integration-banner">
-          Esta lista muestra los datos de cuenta disponibles. El vehículo y la
-          capacidad se consultan en el detalle de las verificaciones.
-        </p>
-      )}
-      {config.title === "Inventario" && (
-        <div className="card-actions">
-          <a className="button secondary" href="#/distribuciones">
-            Distribuciones
-          </a>
-          <a className="button secondary" href="#/alertas">
-            Alertas de inventario
-          </a>
-          <a className="button secondary" href="#/incidencias">
-            Incidencias
-          </a>
-        </div>
-      )}
-      {config.title === "Distribuciones" && (
-        <DistributionCreate onSaved={read.refresh} />
       )}
       {path === "/me/notificaciones" && (
         <ActionButtons
@@ -463,17 +420,10 @@ export function ReadScreen({ path, id }: { path: string; id: string | null }) {
         <p role="alert">Esta consulta requiere el rol Administrador.</p>
       </Card>
     );
+  if (path === "/inventario") return <InventoryLive />;
+  if (path === "/recepciones") return <ReceptionInbox history={<Records key={path} config={configs[path]} />} />;
   if (config) return <Records key={path} config={config} />;
-  if (path === "/reportes")
-    return (
-      <>
-        <p className="integration-banner">
-          Resumen de indicadores de la API. La bitácora de auditoría no dispone
-          de un endpoint de consulta.
-        </p>
-        <DashboardLive />
-      </>
-    );
+  if (path === "/reportes") return <AuditLive />;
   if (path === "/configuracion") return <SettingsLive />;
   if (!id)
     return (
@@ -503,7 +453,7 @@ export function ReadScreen({ path, id }: { path: string; id: string | null }) {
     </div>
   );
 }
-function DetailBody({
+export function DetailBody({
   path,
   row,
   endpoint,
@@ -512,39 +462,32 @@ function DetailBody({
   row: Row;
   endpoint: string;
 }) {
-  const read = useRead<Row>(endpoint);
+  const read = useRead<Row>(endpoint, path === "/rutas" ? 15000 : 0);
   return (
     <>
       <button className="button secondary" type="button" onClick={read.refresh}>
         Actualizar detalle
       </button>
-      <ReadBody endpoint={endpoint} read={read} />
+      <ReadBody
+        endpoint={endpoint}
+        read={path === "/rutas" && read.data ? {
+          ...read,
+          data: Object.fromEntries(
+            Object.entries(read.data).filter(([key]) => !["geometria", "geometry"].includes(key)),
+          ),
+        } : read}
+      />
+      {path === "/recepciones" && read.data && <p className="muted">Esta recepción ya fue registrada con resultado {textValue(read.data.estado)}. La decisión final se conserva para mantener la trazabilidad.</p>}
       {path === "/donaciones" && (
         <>
           <h3>Historial</h3>
           <ReadBody endpoint={`${endpoint}/historial`} />
         </>
       )}
-      {path === "/rutas" &&
-        Array.isArray(read.data?.paradas) &&
-        (read.data.paradas as Row[]).map((stop) => (
-          <section key={String(stop.id)}>
-            <h3>
-              Parada {String(stop.orden)} · {String(stop.direccion)}
-            </h3>
-
-            <EvidencePanel parent="parada_id" id={String(stop.id)} />
-          </section>
-        ))}
-      {["/donaciones", "/recepciones", "/incidencias"].includes(path) && (
+      {path === "/rutas" && read.data && <RouteExecution route={read.data} refresh={read.refresh} />}
+      {path === "/donaciones" && (
         <EvidencePanel
-          parent={
-            path === "/donaciones"
-              ? "donacion_id"
-              : path === "/recepciones"
-                ? "recepcion_id"
-                : "incidencia_id"
-          }
+          parent="donacion_id"
           id={String(row.id)}
         />
       )}
@@ -560,6 +503,7 @@ export function NotificationsRead({ close }: { close: string }) {
 }
 export function LiveBell({ href }: { href: string }) {
   useActivityObserver();
+  useDonationRealtime();
   const user = useSession()?.session?.user.id ?? "";
   const activity = useActivity(user);
   const read = useRead<Page<Row> & { no_leidas: number }>(
@@ -584,3 +528,9 @@ export function LiveBell({ href }: { href: string }) {
     </a>
   );
 }
+
+
+
+
+
+

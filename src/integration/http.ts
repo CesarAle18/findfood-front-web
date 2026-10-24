@@ -1,3 +1,4 @@
+﻿import { recordAudit } from "./audit";
 import { integrationConfig } from "./config";
 import { supabase } from "./supabase";
 import type { Problem } from "./contracts";
@@ -70,6 +71,12 @@ export async function apiRequest<T>(
       title: problem.title || `Error de la API (${response.status}).`,
     });
   }
+  const method = (options.method ?? "GET").toUpperCase();
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    const user = data.session.user;
+    recordAudit(user.id, String(user.email ?? user.id), path, method);
+  }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
+

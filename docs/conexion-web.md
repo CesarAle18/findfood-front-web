@@ -1,4 +1,6 @@
-# Integración de FindFood web con la API
+﻿# Integración de FindFood web con la API
+
+> Actualización del 23/10/2026: la integración vigente usa Generacion-de-rutas-dinamicas (a518f9d). Consultar [la matriz de requerimientos](revision-requerimientos-web.md) para el alcance actual, nuevos endpoints y límites; los apartados históricos siguientes describen etapas previas.
 
 Fuentes: rama Conexion_Back del frontend (base 6a339dc) y Conexion_Front de la API (base 20b9a90), obtenidas de los repositorios compartidos. La API incorpora PUT /v1/admin/parametros para guardar la configuración completa en una transacción. Debe actualizarse junto con el frontend. Las capturas de Swagger se contrastaron con los controladores, permisos, DTO y servicios de esa rama.
 
@@ -21,7 +23,7 @@ Usa la clave pública publishable o anon del mismo proyecto de Supabase que usa 
 
 En el .env de la API configura `CORS_ORIGENES=http://localhost:5173` (o el origen exacto que muestra tu navegador). Reinicia NestJS. Luego ejecuta `npm run dev -- --port 5173 --strictPort` en el frontend.
 
-Para la recuperación de contraseña, configura en Supabase Auth la Site URL http://localhost:5173 y la Redirect URL http://localhost:5173/?flow=recovery. El enlace recibido debe abrirse en el navegador; no se copian tokens manualmente. El modo demo conserva el cascarón y se activa con VITE_DATA_MODE=demo.
+La rama actual solicita la recuperación mediante POST /panel/recuperar-contrasena y verifica el código con Supabase. La plantilla Reset Password debe mostrar {{ .Token }}. Para compatibilidad con sesiones de recuperación por enlace, configurar también Site URL y Redirect URL del entorno. El modo demo conserva el cascarón y se activa con VITE_DATA_MODE=demo.
 
 ## Cobertura del panel
 
@@ -29,7 +31,7 @@ Las rutas de la tabla llevan /v1 salvo /health.
 
 | Pantalla | Consultas y acciones integradas | Permisos de escritura |
 | --- | --- | --- |
-| Identidad | Supabase Auth; GET/PATCH /me; recuperación, primer ingreso y cambio de contraseña | Cuenta propia |
+| Identidad | Supabase Auth; GET /panel/sesion; PATCH /me; POST /panel/recuperar-contrasena; recuperación, primer ingreso y cambio de contraseña | Cuenta propia |
 | Inicio/reportes | GET /kpis/resumen y GET /almacenes para total actual de existencias y desglose por almacén | Consulta |
 | Configuración | GET /admin/parametros y PUT /admin/parametros para Asignación | ADMIN |
 | Usuarios | GET/POST /admin/usuarios; PATCH /admin/usuarios/:id/estado; POST suspender/reactivar | ADMIN |
@@ -44,12 +46,12 @@ Las rutas de la tabla llevan /v1 salvo /health.
 | Distribuciones | GET lista/detalle; POST crear/confirmar/anular | ASESOR_BANCO |
 | Alertas | GET /alertas; POST /alertas/:id/atender | ASESOR_BANCO |
 | Incidencias | GET lista/detalle; POST crear/revisar/resolver | Crear/revisar: personal; resolver: ADMIN |
-| Rutas | GET lista/detalle | Solo consulta en la web para ADMIN y ASESOR_BANCO |
-| Paradas | Datos y evidencias existentes dentro del detalle de ruta | Solo consulta en la web |
-| Evidencias | GET por donación/parada/recepción/incidencia; vista previa, apertura y renovación de enlaces | Solo consulta en la web |
+| Rutas | GET lista/detalle/seguimiento; POST crear/iniciar/cancelar | Creación e inicio: ASESOR_BANCO para flota; cancelación según contrato |
+| Paradas | Llegada, confirmación manual y recogida fallida dentro del detalle | ASESOR_BANCO: flota y entrega en sede según contrato |
+| Evidencias | Consulta, URL firmada de subida, binario directo a Storage y registro en API | Personal autorizado por la API |
 | Notificaciones | GET y contador; POST leer una/leer todas | Cuenta propia |
 
-Distribuciones, alertas e incidencias se abren desde Inventario. Las acciones de registros se abren desde Ver, en formularios laterales. Nuevo almacén usa el mismo patrón. Los detalles se presentan en tablas de campo y valor; las colecciones separan cada producto o registro con un encabezado. Nueva distribución permite añadir/quitar productos. La recepción se abre con Recibir desde Donaciones.
+Distribuciones e incidencias se abren desde Inicio → Operación del banco. Alertas conserva su acceso desde Inventario. Las acciones de registros se abren desde Ver, en formularios laterales. Nuevo almacén usa el mismo patrón. Los detalles se presentan en tablas de campo y valor; las colecciones separan cada producto o registro con un encabezado. Nueva distribución permite añadir/quitar productos. La recepción se abre con Recibir desde Donaciones.
 
 ADMIN no hereda los permisos exclusivos de ASESOR_BANCO. No se muestra un botón de escritura si el rol no está autorizado. La API valida además los estados, propiedad, disponibilidad de inventario y reglas de negocio: ocultar un botón no sustituye esas verificaciones.
 
@@ -63,9 +65,9 @@ ADMIN no hereda los permisos exclusivos de ASESOR_BANCO. No se muestra un botón
 - La recepción exige una donación ENTREGADA y una sede de destino. En recepción parcial se envían solo los productos aceptados, con cantidad y peso numéricos. Rechazo/aceptación parcial requieren motivo.
 - AJUSTE admite signo; MERMA/VENCIMIENTO descuentan una cantidad positiva. Cero no es válido.
 - Crear una distribución reserva existencias FEFO. Se confirma o anula únicamente según su estado; stock insuficiente produce un error visible.
-- Configuración muestra únicamente Asignación, como en el mockup: cuatro sliders/porcentajes, suma de 100%, valores predeterminados 30/30/25/15 y paradas de 1 a 5. Cancelar restaura lo guardado. Guardar envía los cinco parámetros juntos mediante PUT /v1/admin/parametros con cuerpo {valores:[{clave,valor},...]}. La API valida el conjunto, bloquea las filas, actualiza y audita dentro de una transacción. El PUT individual sigue disponible, pero no se utiliza para guardar los cuatro pesos desde esta pantalla.
+- La sección Asignación de Configuración conserva el mockup: cuatro sliders/porcentajes, suma de 100%, valores predeterminados 30/30/25/15 y paradas de 1 a 5. Cancelar restaura lo guardado. Guardar envía los cinco parámetros juntos mediante PUT /v1/admin/parametros con cuerpo {valores:[{clave,valor},...]}. La API valida el conjunto, bloquea las filas, actualiza y audita dentro de una transacción. El PUT individual sigue disponible, pero no se utiliza para guardar los cuatro pesos desde esta pantalla.
 
-- La web solo consulta evidencias. Muestra url_lectura en los registros de evidencias y foto_url para fotografías de productos. Las URL firmadas se renuevan mediante una nueva consulta; no se generan enlaces públicos ni se suben imágenes desde el navegador.
+- La web consulta y adjunta evidencias: URL firmada de subida, binario directo a Storage y metadatos enviados a la API. Muestra url_lectura y foto_url; las lecturas se renuevan mediante una nueva consulta, sin enlaces públicos.
 
 ## Validación automática
 
@@ -115,7 +117,7 @@ Conserva los mensajes de error y revisa Network si una regla impide operar. 401 
 
 ## Reportes e indicadores
 
-El aviso de Reportes distingue indicadores de auditoría. Los indicadores de donaciones, aceptación, kilos y recepciones por almacén sí se consultan con GET /v1/kpis/resumen. La tabla auditoria guarda acciones del sistema, pero esta rama no tiene un GET para listar esa bitácora (usuario, acción, entidad, fecha y cambios). El aviso no significa que falle /kpis/resumen. Para reproducir un reporte de auditoría hace falta definir un endpoint paginado y sus filtros, permisos y DTO. No se añadió ese servicio en esta corrección de Configuración.
+Reportes presenta un registro local de acciones exitosas (POST, PUT, PATCH y DELETE), con fecha, cuenta, módulo, acción y entidad, filtros y exportación CSV. Se conserva por cuenta en este navegador, hasta 2.000 registros. No guarda cuerpos de solicitudes, contraseñas, tokens, valores anteriores/nuevos ni IP. No registra consultas GET ni lecturas de notificaciones. No reconstruye actividad anterior a esta implementación ni operaciones realizadas fuera de este navegador. El backend actual no expone un GET de auditoría; una bitácora central de todos los usuarios requiere ese endpoint con permisos y DTO definidos. Los indicadores globales siguen disponibles en Inicio mediante GET /v1/kpis/resumen.
 
 ## Ajustes de interfaz del 16 de octubre de 2026
 
@@ -132,7 +134,7 @@ Validación: compilación, lint, renderizado y escenarios de navegador con servi
 
 El asesor no ve Usuarios ni Configuración en el menú. Usuarios, Lista de voluntarios, Pendientes y Configuración siguen protegidos al entrar por URL; no se solicitan sus servicios administrativos para el asesor. ADMIN conserva esos accesos.
 
-Rutas es de solo consulta para ambos roles. Se retiraron crear, iniciar y cancelar rutas, y llegada, confirmación, fallo y carga de evidencias de paradas. Las evidencias existentes siguen visibles. No se cambian los permisos ni endpoints de la API usados por otros clientes.
+Actualización 23/10/2026: Rutas permite planificar/iniciar flota y operar sus paradas con ASESOR_BANCO; también confirmar entregas en sede. La cancelación de rutas planificadas respeta los roles de la API. Se agrega subida directa de evidencias y seguimiento privado. Esta ampliación reemplaza la restricción histórica de solo consulta.
 
 Almacenes muestra el total de existencias, separado de la capacidad. Tabla y detalle formatean los pesos numéricos o decimales recibidos como texto de la misma forma. El detalle se actualiza con el registro del listado tras refrescar los datos, en vez de retener una copia antigua de la selección.
 
@@ -140,7 +142,7 @@ Revisión del servicio: GET /almacenes calcula kg_en_inventario sumando peso_dis
 
 ### Flujo de recepción
 
-1. La recogida y entrega deben haberse completado y la donación debe estar ENTREGADA en una sede. Al quedar Rutas de solo consulta en web, estas transiciones se ejecutan desde el cliente operativo o las operaciones autorizadas de la API.
+1. La recogida y entrega deben haberse completado y la donación debe estar ENTREGADA en una sede. El asesor puede completar las operaciones de flota y la entrega en sede desde el detalle de Rutas; el voluntario ejecuta su recorrido desde el móvil.
 2. El asesor abre Donaciones y pulsa Recibir en una donación ENTREGADA. ADMIN no recibe esa acción. Entrar por URL a una donación no entregada también bloquea el formulario.
 3. Selecciona Aceptada, Aceptada parcialmente o Rechazada. En los dos últimos casos el motivo es obligatorio; algunos motivos requieren observación. En aceptación parcial indica productos, cantidades y pesos aceptados.
 4. Registrar recepción crea los lotes aceptados en el almacén de destino y deja la donación RECIBIDA; el rechazo total no crea lotes y deja la donación RECHAZADA.
@@ -165,39 +167,7 @@ Validación con respuestas simuladas: lectura en donaciones, recepciones, incide
 
 ## Mapa de rutas y distribución de asignaciones
 
-Rutas muestra un mapa en la pantalla principal con selector sobre las rutas de la página y del filtro actuales. Consulta GET /rutas/:id al cambiar la selección. Las paradas se ordenan por orden y se ubican mediante lat/lng válidos; las que no incluyen coordenadas se omiten del mapa y se informa. Si no hay coordenadas, se muestra un estado vacío.
-
-- **Con `VITE_GOOGLE_MAPS_API_KEY`:**
-  - El mapa es Google Maps (`@vis.gl/react-google-maps`, `src/integration/RouteMap.tsx`), con marcadores numerados y el botón «Centrar ruta».
-  - Con `VITE_GOOGLE_MAPS_MAP_ID` usa marcadores avanzados; sin él, marcadores clásicos.
-  - La llave debe ser exclusiva del panel: solo *Maps JavaScript API*, restringida por referrer HTTP. Nunca debe ser la llave del servidor de la API.
-- **Sin llave:** se mantiene el respaldo anterior. Usa cartografía OpenStreetMap con atribución visible, permite acercar, alejar y centrar, respeta la caché del navegador y solo solicita las teselas visibles (https://operations.osmfoundation.org/policies/tiles/).
-
-### Ubicación en vivo del voluntario
-
-Con el mapa de Google y la ruta EN_CURSO, el panel escucha el canal privado `ruta:<id>` de Supabase Realtime (`src/integration/live-position.ts`). Dibuja el vehículo deslizándose entre posiciones, con la flecha según el rumbo, y muestra la hora de la última posición.
-
-- **Contrato del evento `posicion`:** `{ lat, lng, rumbo, velocidad_kmh, precision_m, at }`.
-- **Permisos:** los dan las políticas de `realtime.messages` de la API (§9.2). Solo el voluntario de la ruta emite; escucha el personal activo sin contraseña temporal pendiente.
-- **Persistencia:** las posiciones no se guardan.
-
-Para probar sin teléfono, `scripts/simular-ruta.mjs` inicia sesión como el voluntario y emite posiciones a lo largo de la geometría de la ruta, o de sus paradas en orden si no hay geometría:
-
-```bash
-SIM_EMAIL=voluntario@correo SIM_PASSWORD='...' npm run simular:ruta            # su ruta EN_CURSO
-SIM_EMAIL=... SIM_PASSWORD='...' SIM_KMH=40 SIM_ACELERAR=5 npm run simular:ruta -- <ruta_id>
-```
-
-Si el canal rechaza la conexión, revisa que las migraciones con las políticas de Realtime estén aplicadas en el proyecto de Supabase.
-
-### Dirección de un almacén nuevo
-
-En «Nuevo almacén», el campo Dirección sugiere direcciones de Google mediante la API (`GET /geo/autocompletar` y `GET /geo/lugares/:placeId`, con un UUID de sesión por búsqueda). La llave de servidor nunca llega al navegador.
-
-- **Al elegir una sugerencia:** se llenan la dirección y la latitud/longitud, con seis decimales.
-- **Con llave del panel:** aparece un mini-mapa con un pin arrastrable para llevar el punto a la entrada exacta.
-- **Por qué importa el punto:** la ubicación del almacén decide a qué sede se dirige cada donación (la más cercana).
-- **Si la API responde 503 `geo-no-disponible`:** se informa al usuario, y la dirección y las coordenadas se escriben a mano como antes.
+Rutas muestra un mapa en la pantalla principal con selector sobre las rutas de la página y del filtro actuales. Consulta GET /rutas/:id al cambiar la selección. Las paradas se ordenan por orden y se ubican mediante lat/lng válidos; las que no incluyen coordenadas se omiten del mapa y se informa. Si no hay coordenadas, se muestra un estado vacío. El mapa permite acercar, alejar y centrar, con cartografía OpenStreetMap y atribución visible. Se respeta la caché del navegador; solo se solicitan las teselas visibles (https://operations.osmfoundation.org/policies/tiles/).
 
 Cuando el detalle incluye geometria o geometry de tipo GeoJSON LineString, se dibuja ese trazado. De lo contrario, la línea discontinua conecta las paradas e indica que la API no entrega el recorrido GPS. No se calcula un recorrido por calles ni se interpreta la conexión entre paradas como un historial de posiciones. Para visualizar el recorrido efectivamente realizado, el backend debe incluir esa geometría en el detalle.
 
@@ -218,3 +188,9 @@ Las notificaciones del servidor y la actividad del navegador se presentan en una
 La actividad local es observada por este navegador: al volver puede detectar diferencias respecto al último estado guardado, pero no reconstruye transiciones intermedias, entidades eliminadas antes de consultar ni un historial anterior a la primera referencia. Para entrega duradera a todos los usuarios y dispositivos, la API debe registrar los eventos en /me/notificaciones. No se agregó un endpoint de escritura ni se modificaron permisos del backend.
 
 Validación: npm run test:activity comprueba altas, ventana de pendientes recientes, cambios de estado, ausencia de duplicados y fechas inválidas. El escenario de integración «actividad importante» comprueba campana, listado, paginación más allá de 100 donaciones y persistencia al recargar.
+
+
+Inventario FEFO consulta todas las páginas de los lotes filtrados por sede y tipo antes de ordenar por vencimiento. Las fechas sin hora se interpretan al final del día en Colombia. Prioridad roja: vencido o hasta 24 horas; naranja: hasta 3 días; verde: posterior. Sin fecha queda al final. Los indicadores se calculan antes de los filtros; el régimen solo se muestra si viene informado. Se conservan las acciones de detalle y ajuste. Los accesos a Distribuciones e Incidencias se retiraron de Inventario.
+
+
+

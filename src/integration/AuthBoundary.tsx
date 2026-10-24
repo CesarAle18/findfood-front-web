@@ -11,9 +11,11 @@ export function AuthBoundary({ children }: { children: ReactNode }) {
   const publicPage = ["/login", "/recuperar-contrasena"].includes(
     route.pathname,
   );
+  const restricted = Boolean(auth.profile && !auth.profile.roles.includes("ADMIN") &&
+    ["/usuarios", "/voluntarios", "/pendientes", "/configuracion"].some((path) => route.pathname === path || route.pathname.startsWith(`${path}/`)));
   const target = auth.recovery
     ? null
-    : auth.profile?.debe_cambiar_password
+    : restricted ? "/inicio" : auth.profile?.debe_cambiar_password
       ? route.pathname === "/login"
         ? "/cambiar-contrasena"
         : null
@@ -26,7 +28,7 @@ export function AuthBoundary({ children }: { children: ReactNode }) {
           : null;
   useEffect(() => {
     if (!auth.loading && target && route.pathname !== target)
-      window.location.hash = target;
+      window.location.replace(`#${target}`);
   }, [auth.loading, target, route.pathname]);
   if (auth.loading)
     return (
@@ -35,6 +37,7 @@ export function AuthBoundary({ children }: { children: ReactNode }) {
         <p>Conectando con Find Food…</p>
       </main>
     );
+  if (restricted && !auth.recovery) return null;
   if (auth.recovery || route.pathname === "/restablecer-contrasena") {
     return (
       <main className="auth-page">

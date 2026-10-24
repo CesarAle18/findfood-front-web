@@ -10,6 +10,6 @@ Las tablas, perfiles y notificaciones leen `DataContext`. Algunos valores visual
 
 El rol Administrador es ilustrativo. Login solo navega. Las rutas por hash no tienen protección y el navegador no almacena sesión ni credenciales. El proveedor contempla carga, error, reintento y cancelación para el futuro adaptador; el ejemplo local no acredita conectividad real.
 
-Ubicación y evidencias requieren implementación y permisos futuros. Los mapas de las páginas demo son esquemas (en modo `api`, Rutas y «Nuevo almacén» usan Google Maps); los documentos y fotografías son placeholders. Configuración cambia sliders y cantidad de paradas en memoria, no configura ningún motor. Filtros operan sobre muestras locales y se reinician al cambiar de módulo. Los formularios no guardan: crear, editar, aprobar, rechazar y exportar permanecen deshabilitados.
+Google Maps, ubicación y evidencias requieren implementación y permisos futuros. Los mapas actuales son esquemas; los documentos y fotografías son placeholders. Configuración cambia sliders y cantidad de paradas en memoria, no configura ningún motor. Filtros operan sobre muestras locales y se reinician al cambiar de módulo. Los formularios no guardan: crear, editar, aprobar, rechazar y exportar permanecen deshabilitados.
 
 La navegación desde Nueva recepción conduce a una recepción de ejemplo seleccionada, sin crear registros. Los detalles de productos en recepción son ilustrativos. Antes de producción se requieren pruebas de integración, autorización y revisión visual/accesible en navegadores reales.

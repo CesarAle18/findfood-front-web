@@ -1,3 +1,4 @@
+﻿import { requestPanelRecovery } from "./panel-auth";
 import { useState } from "react";
 import { Field, Icon, LinkButton } from "../components/ui";
 import { supabase, rememberSession } from "./supabase";
@@ -19,7 +20,8 @@ export function AuthLive({ forgot = false }: { forgot?: boolean }) {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => sessionStorage.getItem("findfood:panel-denied") ?? "");
+  const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   return (
     <main className="auth-page">
@@ -36,22 +38,28 @@ export function AuthLive({ forgot = false }: { forgot?: boolean }) {
         </h1>
         <p>
           {forgot
-            ? "Ingresa el correo asociado a tu cuenta. Te enviaremos las instrucciones para restablecerla."
+            ? "Ingresa el correo asociado a tu cuenta. Te enviaremos un código para restablecerla."
             : "Inicia sesión para continuar con la operación."}
         </p>
         {sent ? (
-          <>
-            <div className="info" role="status">
-              <Icon name="mail" />
-              <p>
-                Si el correo está registrado, recibirás un enlace para
-                restablecer tu contraseña. Revisa también la carpeta de spam.
-              </p>
-            </div>
-            <LinkButton to="#/login" secondary>
-              Volver al inicio de sesión
-            </LinkButton>
-          </>
+          <form className="form-stack" onSubmit={async (event) => {
+            event.preventDefault();
+            if (busy) return;
+            setBusy(true); setError("");
+            try {
+              const result = await supabase!.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "recovery" });
+              if (result.error) throw new Error("El código no es válido o venció. Solicita uno nuevo.");
+              window.location.hash = "/restablecer-contrasena";
+            } catch (e) { setError(errorMessage(e)); }
+            finally { setBusy(false); }
+          }}>
+            <p role="status">Si la cuenta puede usar el panel, recibirás un código de recuperación. Revisa también la carpeta de spam.</p>
+            <Field label="Código de recuperación" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" minLength={6} maxLength={6} required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} disabled={busy} />
+            {error && <p role="alert" className="integration-error">{error}</p>}
+            <button type="submit" className="button" disabled={busy}>{busy ? "Verificando…" : "Verificar código"}</button>
+            <button type="button" className="button secondary" disabled={busy} onClick={() => { setSent(false); setCode(""); setError(""); }}>Solicitar otro código</button>
+            <LinkButton to="#/login" secondary>Volver al inicio de sesión</LinkButton>
+          </form>
         ) : (
           <form
             className="form-stack"
@@ -59,14 +67,10 @@ export function AuthLive({ forgot = false }: { forgot?: boolean }) {
               event.preventDefault();
               setBusy(true);
               setError("");
+              sessionStorage.removeItem("findfood:panel-denied");
               try {
                 if (forgot) {
-                  const redirectTo = `${window.location.origin}${window.location.pathname}?flow=recovery`;
-                  const result = await supabase!.auth.resetPasswordForEmail(
-                    email.trim(),
-                    { redirectTo },
-                  );
-                  if (result.error) throw new Error(authError(result.error));
+                  await requestPanelRecovery(email.trim());
                   setSent(true);
                 } else {
                   rememberSession(remember);
@@ -75,7 +79,7 @@ export function AuthLive({ forgot = false }: { forgot?: boolean }) {
                     password,
                   });
                   if (result.error) throw new Error(authError(result.error));
-                  // AuthBoundary consulta /me y decide si corresponde el cambio obligatorio.
+                  // AuthBoundary valida /panel/sesion y decide si corresponde el cambio obligatorio.
                 }
               } catch (err) {
                 setError(errorMessage(err));
@@ -143,3 +147,5 @@ export function AuthLive({ forgot = false }: { forgot?: boolean }) {
     </main>
   );
 }
+
+

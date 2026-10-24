@@ -4,7 +4,6 @@ import { apiRequest, errorMessage } from "./http";
 import type { Action, Input, Row, Source, Values } from "./actions";
 import { useSession } from "./session-context";
 import { addActivity } from "./activity";
-import { PlaceField } from "./PlaceField";
 
 export function OptionsField({
   field,
@@ -252,36 +251,6 @@ export function ActionForm({
                 value={values[field.key]}
                 disabled={busy}
                 change={change}
-              />
-            );
-          if (field.type === "place")
-            return (
-              <PlaceField
-                key={field.key}
-                field={field}
-                value={values[field.key]}
-                point={
-                  values.lat && values.lng
-                    ? { lat: Number(values.lat), lng: Number(values.lng) }
-                    : null
-                }
-                disabled={busy}
-                change={change}
-                onPlace={(direccion, p) =>
-                  setValues((previous) => ({
-                    ...previous,
-                    [field.key]: direccion,
-                    lat: String(p.lat),
-                    lng: String(p.lng),
-                  }))
-                }
-                onPoint={(p) =>
-                  setValues((previous) => ({
-                    ...previous,
-                    lat: String(p.lat),
-                    lng: String(p.lng),
-                  }))
-                }
               />
             );
           if (field.type === "checkbox")

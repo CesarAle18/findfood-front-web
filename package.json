@@ -10,12 +10,10 @@
     "preview": "vite preview",
     "test:render": "node scripts/check-render.cjs",
     "test:activity": "node scripts/check-activity.cjs",
-    "test:integration": "node scripts/check-integration.cjs",
-    "simular:ruta": "node --env-file=.env.local scripts/simular-ruta.mjs"
+    "test:integration": "node scripts/check-integration.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
-    "@vis.gl/react-google-maps": "1.10.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

@@ -1,4 +1,4 @@
-import { useRead } from "./read";
+﻿import { useRead } from "./read";
 import { DataDetails } from "./ReadDisplay";
 import { EvidenceImage } from "./EvidenceImage";
 import type { Row } from "./actions";
@@ -84,3 +84,5 @@ export function EvidencePanel({
     </section>
   );
 }
+
+

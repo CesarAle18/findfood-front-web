@@ -1,4 +1,4 @@
-const checkApiContract = require("./api-contract-check.cjs");
+﻿const checkApiContract = require("./api-contract-check.cjs");
 // Pruebas de navegador con Supabase y API simulados. No toca cuentas reales.
 // Requiere Playwright y Chromium; ver docs/conexion-web.md.
 const assert = require("node:assert/strict");
@@ -25,9 +25,7 @@ const devServer = process.env.TEST_WEB_URL
           VITE_API_URL: "http://127.0.0.1:4300/v1",
           VITE_SUPABASE_URL: "http://127.0.0.1:4301",
           VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test_only",
-          // Sin Google aunque .env.local tenga la llave: el mapa de rutas usa su respaldo OSM.
-          VITE_GOOGLE_MAPS_API_KEY: "",
-          VITE_GOOGLE_MAPS_MAP_ID: "",
+          VITE_GOOGLE_MAPS_API_KEY: "test-key-not-real",
         },
       },
     );
@@ -131,6 +129,31 @@ const jwt = () =>
         },
         body: status === 204 ? undefined : JSON.stringify(body),
       });
+    await page.route("https://maps.googleapis.com/maps/api/js?**", (route) => route.fulfill({ contentType: "application/javascript", body: `
+      window.google = { maps: {
+        Map: class { constructor(element, options) { window.__mapCount = (window.__mapCount || 0) + 1; this.element = element; this.zoom = options.zoom; this.element.dataset.zoom = this.zoom; } fitBounds() {} getZoom() { return this.zoom; } setZoom(value) { this.zoom = value; this.element.dataset.zoom = value; } },
+        LatLngBounds: class { extend() {} },
+        Polyline: class { setMap() {} },
+        marker: { AdvancedMarkerElement: class { constructor(options) { Object.assign(this, options); } } }
+      } };
+      window.findfoodMapsReady();
+    ` }));
+    const channels = new Map();
+    state.realtimeJoins = [];
+    state.broadcast = (topic, event, payload) => {
+      const channel = channels.get(`realtime:${topic}`);
+      assert(channel, `No subscription to ${topic}`);
+      channel.socket.send(JSON.stringify([channel.joinRef, null, `realtime:${topic}`, "broadcast", { event, payload, type: "broadcast" }]));
+    };
+    await page.routeWebSocket("ws://127.0.0.1:4301/realtime/v1/websocket**", (socket) => {
+      socket.onMessage((message) => {
+        const [joinRef, ref, topic, event, payload] = JSON.parse(String(message));
+        if (event === "phx_join") {
+          channels.set(topic, { socket, joinRef }); state.realtimeJoins.push({ topic, payload });
+        }
+        if (event === "phx_join" || event === "heartbeat" || event === "phx_leave") socket.send(JSON.stringify([joinRef, ref, topic, "phx_reply", { status: "ok", response: {} }]));
+      });
+    });
     await page.route(`${provider}/**`, async (route) => {
       const request = route.request(),
         url = new URL(request.url()),
@@ -138,6 +161,10 @@ const jwt = () =>
           ? request.postDataJSON()
           : {};
       if (request.method() === "OPTIONS") return fulfill(route, {}, 204);
+      if (url.pathname.endsWith("/verify")) {
+        if (body.token !== "123456") return fulfill(route, { error_code: "otp_expired", msg: "Expired" }, 403);
+        return fulfill(route, { access_token: jwt(), token_type: "bearer", expires_in: 3600, refresh_token: "mock-refresh-token", user });
+      }
       if (url.pathname.endsWith("/token")) {
         if (body.password !== state.password)
           return fulfill(
@@ -180,6 +207,11 @@ const jwt = () =>
       if (request.method() === "OPTIONS") return fulfill(route, {}, 204);
       if (url.pathname === "/health") return fulfill(route, { status: "ok" });
       await checkApiContract(request, state.roles);
+      if (url.pathname === "/v1/panel/recuperar-contrasena") {
+        assert.equal(request.headers().authorization, undefined);
+        state.recoverySent = true;
+        return fulfill(route, { mensaje: "Si la cuenta puede usar el panel, enviamos un código" }, 202);
+      }
       assert.match(request.headers().authorization || "", /^Bearer /);
       state.requests.push({
         path: url.pathname,
@@ -277,7 +309,7 @@ const jwt = () =>
             lote_inventario: { codigo_lote: "LOTE-REAL" },
           },
         ]);
-      if (url.pathname.endsWith("/me")) {
+      if (url.pathname.endsWith("/me") || url.pathname.endsWith("/panel/sesion")) {
         if (state.profileFailure)
           return fulfill(
             route,
@@ -510,32 +542,6 @@ const jwt = () =>
               : {}),
           });
       }
-      if (url.pathname === "/v1/geo/autocompletar")
-        return state.geoUnavailable
-          ? fulfill(
-              route,
-              {
-                type: "geo-no-disponible",
-                title: "La búsqueda de direcciones no está disponible",
-                status: 503,
-              },
-              503,
-            )
-          : fulfill(route, {
-              sugerencias: [
-                {
-                  place_id: "ChIJ-sede",
-                  principal: "Calle 12 #34-56",
-                  secundario: "Bogotá, Colombia",
-                },
-              ],
-            });
-      if (url.pathname.startsWith("/v1/geo/lugares/"))
-        return fulfill(route, {
-          place_id: "ChIJ-sede",
-          direccion: "Cl. 12 #34-56, Bogotá, Colombia",
-          ubicacion: { lat: 4.6012345678, lng: -74.0712345678 },
-        });
       if (url.pathname.endsWith("/candidatos"))
         return fulfill(route, [
           {
@@ -680,6 +686,360 @@ const jwt = () =>
     }
   }
   try {
+    await scenario("recepciones de ruta finalizada: selección estados y reintento", async ({ page, state, login }) => {
+      state.roles = ["ASESOR_BANCO"];
+      state.routeRows = [{ id, codigo: "RUTA-FINALIZADA", estado: "COMPLETADA", paradas: 6 }, { id: userId(8), codigo: "RUTA-EN-CURSO", estado: "EN_CURSO" }];
+      const stops = [0, 1, 2, 3, 4].map((i) => ({ id: userId(20 + i), orden: i + 1, tipo: "RECOGIDA", estado: i === 4 ? "FALLIDA" : "COMPLETADA", donacion_id: userId(i), donacion_codigo: `DON-RUTA-${i + 1}`, donacion_estado: i === 3 ? "RECIBIDA" : "ENTREGADA" }));
+      state.routeDetails = { [`/v1/rutas/${id}`]: { id, codigo: "RUTA-FINALIZADA", estado: "COMPLETADA", almacen_destino: { nombre: "Sede Norte" }, paradas: [...stops, { ...stops[0], id: userId(29) }, { id: userId(30), tipo: "ENTREGA", estado: "COMPLETADA" }] } };
+      const decisions = [];
+      await page.route(`${api}/v1/donaciones/*`, (route) => {
+        const donationId = new URL(route.request().url()).pathname.split("/").at(-1);
+        const stop = stops.find((s) => s.donacion_id === donationId);
+        if (!stop || route.request().method() !== "GET") return route.fallback();
+        return route.fulfill({ json: { id: donationId, codigo: stop.donacion_codigo, estado: stop.donacion_estado, items: [{ id: userId(40 + stops.indexOf(stop)), cantidad: 10, peso_estimado_kg: 10, tipo_alimento: { nombre: "Manzanas" } }] } });
+      });
+      await page.route(`${api}/v1/recepciones`, async (route) => {
+        if (route.request().method() !== "POST") return route.fallback();
+        const body = route.request().postDataJSON(); decisions.push(body);
+        if (body.donacion_id === userId(1) && decisions.filter((d) => d.donacion_id === userId(1)).length === 1) return route.fulfill({ status: 503, json: { title: "Error temporal de recepción" } });
+        for (const stop of state.routeDetails[`/v1/rutas/${id}`].paradas) if (stop.donacion_id === body.donacion_id) stop.donacion_estado = body.estado === "RECHAZADA" ? "RECHAZADA" : "RECIBIDA";
+        return route.fulfill({ json: { id: userId(50 + decisions.length), estado: body.estado } });
+      });
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.goto(`${base}/#/recepciones`);
+      await page.getByRole("button", { name: "Crear recepción", exact: true }).click();
+      const panel = page.getByRole("dialog", { name: "Crear recepción de ruta", exact: true });
+      await panel.getByLabel("Ruta finalizada", { exact: true }).selectOption(id);
+      await panel.getByLabel("DON-RUTA-1", { exact: true }).waitFor();
+      assert.equal(await panel.getByRole("option", { name: "RUTA-EN-CURSO", exact: true }).count(), 0);
+      assert.equal(await panel.getByLabel("DON-RUTA-1", { exact: true }).count(), 1);
+      assert(await panel.getByLabel("DON-RUTA-4", { exact: true }).isDisabled());
+      assert(await panel.getByLabel("DON-RUTA-5", { exact: true }).isDisabled());
+      for (const code of ["DON-RUTA-1", "DON-RUTA-2", "DON-RUTA-3"]) await panel.getByLabel(code, { exact: true }).check();
+      const first = panel.getByRole("region", { name: "Recepción de DON-RUTA-1", exact: true });
+      await first.getByRole("button", { name: "Registrar recepción", exact: true }).click();
+      await panel.getByText("1 recepción registrada en este formulario.", { exact: true }).waitFor();
+      const second = panel.getByRole("region", { name: "Recepción de DON-RUTA-2", exact: true });
+      await second.getByLabel("Resultado de recepción").selectOption("ACEPTADA_PARCIAL");
+      await second.getByLabel("Motivo", { exact: true }).selectOption("1");
+      await second.getByLabel("Cantidad aceptada", { exact: true }).fill("5");
+      await second.getByLabel("Peso aceptado (kg)", { exact: true }).fill("5");
+      await second.getByRole("button", { name: "Registrar recepción", exact: true }).click();
+      await second.getByRole("alert").filter({ hasText: "Error temporal de recepción" }).waitFor();
+      assert.equal(decisions.filter((d) => d.donacion_id === userId(0)).length, 1);
+      await second.getByRole("button", { name: "Registrar recepción", exact: true }).click();
+      await panel.getByText("2 recepciones registradas en este formulario.", { exact: true }).waitFor();
+      const third = panel.getByRole("region", { name: "Recepción de DON-RUTA-3", exact: true });
+      await third.getByLabel("Resultado de recepción").selectOption("RECHAZADA");
+      await third.getByLabel("Motivo", { exact: true }).selectOption("1");
+      await third.getByRole("button", { name: "Registrar recepción", exact: true }).click();
+      await panel.getByText("3 recepciones registradas en este formulario.", { exact: true }).waitFor();
+      assert.deepEqual(decisions.map((d) => d.estado), ["ACEPTADA", "ACEPTADA_PARCIAL", "ACEPTADA_PARCIAL", "RECHAZADA"]);
+      assert.equal(decisions[2].items[0].cantidad_aceptada, 5);
+      assert.equal(decisions[3].items, undefined);
+      await page.keyboard.press("Escape");
+      state.routeDetails[`/v1/rutas/${id}`].estado = "EN_CURSO";
+      await page.getByRole("button", { name: "Crear recepción", exact: true }).click();
+      await page.getByLabel("Ruta finalizada", { exact: true }).selectOption(id);
+      await page.getByText("La ruta debe estar finalizada antes de crear sus recepciones.", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("button", { name: "Registrar recepción", exact: true }).count(), 0);
+      await page.keyboard.press("Escape");
+      state.roles = ["ADMIN"];
+      await page.reload();
+      await page.getByRole("button", { name: "Ver", exact: true }).first().waitFor();
+      assert.equal(await page.getByRole("button", { name: "Crear recepción", exact: true }).count(), 0);
+    });
+    await scenario("correcciones contexto banco único y usuarios únicos", async ({ page, state, login }) => {
+      state.stock = [
+        { id, nombre: "Sede Norte", direccion: "Calle 1", tipo: "SECO", capacidad_kg: 1000, kg_en_inventario: 20, activo: true },
+        { id: userId(2), nombre: "Sede Sur", direccion: "Calle 2", tipo: "REFRIGERADO", capacidad_kg: 500, kg_en_inventario: 10, activo: true },
+      ];
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.goto(`${base}/#/configuracion`);
+      await page.getByRole("button", { name: "Banco", exact: true }).click();
+      await page.getByRole("table", { name: "Sedes del banco", exact: true }).waitFor();
+      assert.equal(await page.getByRole("table", { name: "Sedes del banco", exact: true }).locator("tbody tr").count(), 2);
+      await page.getByText("La organización tiene un solo banco y varias sedes.", { exact: false }).waitFor();
+      await page.goto(`${base}/#/reportes`);
+      await page.getByText("Cuentas distintas que realizaron las acciones filtradas. Cada cuenta se cuenta una sola vez.", { exact: true }).waitFor();
+    });
+    await scenario("correcciones asesor: acceso bloqueado y decisión de recepción", async ({ page, state, login }) => {
+      state.roles = ["ASESOR_BANCO"];
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      for (const route of ["usuarios", "configuracion", "voluntarios", "pendientes", "usuarios/detalle"]) {
+        await page.goto(`${base}/#/${route}`);
+        await page.waitForURL(`${base}/#/inicio`);
+        await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+        assert.equal(await page.getByText(/requiere el rol Administrador/).count(), 0);
+      }
+      assert(!state.requests.some((r) => r.path.startsWith("/v1/admin/")));
+      await page.goto(`${base}/#/recepciones`);
+      await page.getByRole("button", { name: "Ver", exact: true }).first().click();
+      await page.getByText(/Esta recepción ya fue registrada con resultado/).waitFor();
+      assert.equal(await page.getByRole("dialog").getByRole("heading", { name: "Evidencias", exact: true }).count(), 0);
+      assert.equal(await page.getByRole("dialog").locator('input[type="file"]').count(), 0);
+      assert(!state.requests.some((r) => r.path === "/v1/evidencias" && r.params.recepcion_id));
+      assert.equal(await page.getByRole("button", { name: "Registrar recepción", exact: true }).count(), 0);
+      await page.keyboard.press("Escape");
+      assert.equal(await page.getByRole("button", { name: "Pendientes de revisión", exact: true }).count(), 0);
+      await page.goto(`${base}/#/recepcion?id=${id}`);
+      await page.getByLabel("Resultado de recepción").selectOption("RECHAZADA");
+      await page.getByLabel("Motivo", { exact: true }).selectOption("1");
+      await page.getByLabel("Observaciones", { exact: true }).fill("Producto no apto para recepción");
+      await page.getByRole("button", { name: "Registrar recepción", exact: true }).click();
+      await page.waitForURL(`${base}/#/recepciones`);
+      assert.equal(state.newMutations.find((r) => r.path === "/v1/recepciones").body.estado, "RECHAZADA");
+      state.donationState = "PUBLICADA";
+      await page.goto(`${base}/#/recepcion?id=${id}`);
+      await page.getByText("Recepción no disponible", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("button", { name: "Registrar recepción", exact: true }).count(), 0);
+    });
+    await scenario("correcciones almacén: dirección y refrigeración sí no", async ({ page, state, login }) => {
+      state.roles = ["ASESOR_BANCO"];
+      state.stock = [{ id, nombre: "Sede Norte", direccion: "Calle 1 # 2-30", tipo: "SECO", capacidad_kg: 1000, kg_en_inventario: 30, activo: true, lat: 4.65, lng: -74.08 }];
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.goto(`${base}/#/almacenes`);
+      await page.getByRole("button", { name: "Ver", exact: true }).first().click();
+      await page.getByRole("button", { name: "Editar almacén", exact: true }).click();
+      const editor = page.getByRole("dialog").last();
+      assert.equal(await editor.getByLabel("¿La sede tiene refrigeración?", { exact: true }).inputValue(), "false");
+      await editor.getByLabel("¿La sede tiene refrigeración?", { exact: true }).selectOption("true");
+      await editor.getByLabel("Dirección", { exact: true }).fill("Carrera 20 # 30-40");
+      assert.equal(await editor.getByLabel("Latitud", { exact: true }).count(), 0);
+      assert.equal(await editor.getByLabel("Longitud", { exact: true }).count(), 0);
+      await editor.getByRole("button", { name: "Confirmar", exact: true }).click();
+      await page.getByRole("dialog", { name: "Editar almacén", exact: true }).waitFor({ state: "hidden" });
+      const change = state.newMutations.find((r) => r.path === `/v1/almacenes/${id}`);
+      assert.equal(change.body.direccion, "Carrera 20 # 30-40");
+      assert.equal(change.body.tipo, "REFRIGERADO");
+      assert.equal(change.body.ubicacion, undefined);
+    });
+    await scenario("rutas compatibles sin seguimiento y errores reales visibles", async ({ page, state, login }) => {
+      state.routeRows = [{ id, codigo: "RUTA-SIN-SEGUIMIENTO", estado: "EN_CURSO", paradas: 1 }, { id: userId(2), codigo: "RUTA-ERROR", estado: "EN_CURSO", paradas: 1 }];
+      state.routeDetails = Object.fromEntries(state.routeRows.map((row) => [`/v1/rutas/${row.id}`, { ...row, paradas: [{ id: userId(4), orden: 1, tipo: "RECOGIDA", estado: "PENDIENTE", direccion: "Parada de prueba", lat: 4.65, lng: -74.08 }] }]));
+      let missingRequests = 0;
+      await page.route(`${api}/v1/rutas/${id}/seguimiento**`, (route) => {
+        missingRequests++;
+        return route.fulfill({ status: 404, json: { message: `Cannot GET /v1/rutas/${id}/seguimiento` } });
+      });
+      await page.route(`${api}/v1/rutas/${userId(2)}/seguimiento**`, (route) => route.fulfill({ status: 503, json: { title: "Seguimiento temporalmente no disponible" } }));
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.goto(`${base}/#/rutas`);
+      await page.locator('.google-route-map[data-zoom]').waitFor();
+      await page.getByText("Sin posición en vivo. El mapa muestra el trazado de la ruta.", { exact: true }).waitFor();
+      assert.equal(await page.getByText(/Cannot GET/).count(), 0);
+      await page.evaluate(() => window.dispatchEvent(new Event("findfood:data-changed")));
+      await page.getByLabel("Ruta seleccionada", { exact: true }).selectOption(userId(2));
+      await page.getByRole("alert").filter({ hasText: "Seguimiento temporalmente no disponible" }).waitFor();
+      await page.getByLabel("Ruta seleccionada", { exact: true }).selectOption(id);
+      await page.locator('.google-route-map[data-zoom]').waitFor();
+      assert.equal(missingRequests, 1);
+      assert.equal(await page.getByText(/Cannot GET/).count(), 0);
+    });
+    await scenario("sesión compatible con API sin endpoint de panel", async ({ page, state, login }) => {
+      await page.route(`${api}/v1/panel/sesion`, (route) => route.fulfill({ status: 404, json: { message: "Cannot GET /v1/panel/sesion" } }));
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      assert(state.requests.some((r) => r.path === "/v1/me"));
+      await page.reload();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      state.roles = ["DONANTE"];
+      await page.reload();
+      await page.getByText("El panel web solo permite el acceso a administradores y asesores del banco.", { exact: true }).waitFor();
+      assert.equal(await page.locator(".sidebar").count(), 0);
+    });
+    await scenario("manual RF-33 RF-36 RF-41 filtros KPI y administración", async ({ page, state, login }) => {
+      let taskRequests = 0;
+      await page.route(`${api}/v1/admin/tareas`, (route) => { taskRequests++; return route.fulfill({ json: { vencer_ofertas: { ultimaEjecucion: new Date().toISOString(), ultimaExitosa: new Date().toISOString(), ultimoResultado: 3, omitidas: 2 } } }); });
+      const queries = [];
+      await page.route(`${api}/v1/inventario/lotes?**`, (route) => {
+        queries.push(Object.fromEntries(new URL(route.request().url()).searchParams));
+        return route.fulfill({ json: { datos: [], total: 0 } });
+      });
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.getByLabel("Indicadores desde").fill("2026-10-01");
+      await page.getByLabel("Indicadores hasta").fill("2026-10-02");
+      await page.getByRole("button", { name: "Consultar periodo", exact: true }).click();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      const kpi = state.requests.find((r) => r.path.endsWith("/kpis/resumen") && r.params.desde);
+      assert.deepEqual(kpi.params, { desde: "2026-10-01T05:00:00.000Z", hasta: "2026-10-03T05:00:00.000Z" });
+      await page.goto(`${base}/#/inventario`);
+      await page.getByRole("table", { name: "Inventario FEFO" }).waitFor();
+      await page.getByLabel("Filtrar inventario por sede").selectOption(id);
+      await page.getByLabel("Filtrar inventario por tipo").selectOption("1");
+      await page.getByRole("table", { name: "Inventario FEFO" }).waitFor();
+      assert(queries.some((q) => q.almacen_id === id && q.tipo_alimento_id === "1"));
+      await page.goto(`${base}/#/configuracion`);
+      await page.getByRole("button", { name: "Banco", exact: true }).click();
+      await page.getByRole("button", { name: "Guardar banco", exact: true }).click();
+      assert.equal(await page.getByRole("dialog").getByLabel("Latitud", { exact: true }).count(), 0);
+      assert.equal(await page.getByRole("dialog").getByLabel("Longitud", { exact: true }).count(), 0);
+      await page.getByLabel("Nombre", { exact: true }).fill("Banco actualizado");
+      await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+      await page.getByRole("dialog").waitFor({ state: "hidden" });
+      const bank = state.newMutations.find((r) => r.path === "/v1/admin/banco");
+      assert.equal(bank.body.nombre, "Banco actualizado");
+      assert.equal(typeof bank.body.ubicacion.lat, "number");
+      assert.deepEqual(bank.body.ubicacion, { lat: 4.7, lng: -74.1 });
+      await page.getByRole("button", { name: "Alimentos", exact: true }).click();
+      await page.getByRole("button", { name: "Nuevo tipo de alimento", exact: true }).click();
+      await page.getByLabel("Categoría", { exact: true }).selectOption("1");
+      await page.getByLabel("Unidad", { exact: true }).selectOption("1");
+      await page.getByLabel("Código", { exact: true }).fill("FRUTA_NUEVA");
+      await page.getByLabel("Nombre", { exact: true }).fill("Fruta nueva");
+      await page.getByLabel("Almacenamiento", { exact: true }).selectOption("SECO");
+      await page.getByLabel("Vida útil (días)", { exact: true }).fill("3");
+      await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+      await page.getByRole("dialog").waitFor({ state: "hidden" });
+      assert.equal(state.newMutations.find((r) => r.path === "/v1/admin/tipos-alimento").body.vida_util_dias, 3);
+      await page.getByRole("button", { name: "Tareas", exact: true }).click();
+      await page.getByText("vencer_ofertas", { exact: true }).waitFor();
+      await page.getByRole("button", { name: "Actualizar tareas", exact: true }).click();
+      await page.getByText("vencer_ofertas", { exact: true }).waitFor();
+      assert(taskRequests >= 2);
+    });
+    await scenario("manual RF-03 acceso al panel y recuperación por código", async ({ page, state, login }) => {
+      await page.route(`${api}/v1/panel/sesion`, (route) => route.fulfill({ status: 403, json: { type: "acceso-panel-denegado", title: "Solo personal del banco", status: 403 } }));
+      await login();
+      await page.getByRole("button", { name: "Iniciar sesión", exact: true }).waitFor();
+      await page.getByText("Solo personal del banco", { exact: true }).waitFor();
+      assert.equal(await page.locator(".sidebar").count(), 0);
+      assert(!state.requests.some((r) => r.path === "/v1/me"));
+      await page.goto(`${base}/#/recuperar-contrasena`);
+      await page.getByLabel("Correo electrónico *").fill(user.email);
+      await page.getByRole("button", { name: "Enviar instrucciones", exact: true }).click();
+      await page.getByLabel("Código de recuperación", { exact: true }).fill("000000");
+      await page.getByRole("button", { name: "Verificar código", exact: true }).click();
+      await page.getByText("El código no es válido o venció. Solicita uno nuevo.", { exact: true }).waitFor();
+      await page.getByLabel("Código de recuperación", { exact: true }).fill("123456");
+      await page.getByRole("button", { name: "Verificar código", exact: true }).click();
+      await page.getByLabel("Nueva contraseña *", { exact: true }).waitFor();
+      assert(state.recoverySent);
+      assert.equal(await page.locator(".sidebar").count(), 0);
+    });
+    await scenario("manual RF-24 RF-26 RF-30 flota entrega y evidencias de solo lectura", async ({ page, state, login }) => {
+      state.roles = ["ASESOR_BANCO"];
+      state.activityRows = { "/v1/donaciones": [{ id, codigo: "DON-FLOTA", estado: "PUBLICADA" }] };
+      state.routeRows = [{ id, codigo: "RUTA-FLOTA", estado: "PLANIFICADA", paradas: 1 }];
+      state.routeDetails = { [`/v1/rutas/${id}`]: { ...state.routeRows[0], flota_banco: true, paradas: [{ id: userId(4), orden: 1, tipo: "ENTREGA", estado: "PENDIENTE", direccion: "Entrega en sede", lat: 4.65, lng: -74.08 }] } };
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.goto(`${base}/#/rutas`);
+      await page.getByRole("button", { name: "Planificar ruta de flota", exact: true }).click();
+      await page.getByLabel("DON-FLOTA", { exact: true }).check();
+      await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+      await page.getByRole("dialog").waitFor({ state: "hidden" });
+      assert.deepEqual(state.newMutations.find((r) => r.path === "/v1/rutas").body, { donacion_ids: [id] });
+      await page.getByRole("button", { name: "Ver", exact: true }).first().click();
+      await page.getByRole("button", { name: "Iniciar ruta", exact: true }).click();
+      await page.getByRole("dialog").last().getByRole("button", { name: "Confirmar", exact: true }).click();
+      state.routeDetails[`/v1/rutas/${id}`].estado = "EN_CURSO";
+      await page.getByRole("button", { name: "Actualizar detalle", exact: true }).click();
+      const stop = page.getByRole("heading", { name: "Parada 1 · Entrega en sede", exact: true }).locator("..");
+      await stop.getByText("No hay evidencias registradas para este registro.", { exact: true }).waitFor();
+      assert.equal(await stop.locator('input[type="file"]').count(), 0);
+      assert.equal(await stop.getByRole("button", { name: "Adjuntar evidencia", exact: true }).count(), 0);
+      assert.equal(state.newMutations.filter((r) => r.path.includes("/evidencias")).length, 0);
+      await stop.getByRole("button", { name: "Confirmar entrega en sede", exact: true }).click();
+      await page.getByLabel("Confirmo que verifiqué presencialmente esta operación").check();
+      await page.getByRole("dialog").last().getByRole("button", { name: "Confirmar", exact: true }).click();
+      await page.getByRole("button", { name: "Confirmar", exact: true }).waitFor({ state: "hidden" });
+      const confirmation = state.newMutations.find((r) => r.path === `/v1/paradas/${userId(4)}/confirmar`);
+      assert.equal(confirmation.body.confirmacion_manual, true);
+      assert.equal(confirmation.body.ubicacion, undefined);
+      assert(Number.isFinite(Date.parse(confirmation.body.confirmada_en_dispositivo)));
+    });
+    await scenario("manual RF-29 RF-38 Realtime privado y seguimiento", async ({ page, state, login }) => {
+      state.activityRows = { "/v1/donaciones": [{ id, codigo: "DON-INICIAL", estado: "PUBLICADA" }] };
+      state.routeRows = [{ id, codigo: "RUTA-VIVA", estado: "EN_CURSO", paradas: 1 }];
+      state.routeDetails = { [`/v1/rutas/${id}`]: { ...state.routeRows[0], flota_banco: false, paradas: [{ id: userId(4), orden: 1, tipo: "ENTREGA", estado: "PENDIENTE", direccion: "Sede destino", lat: 4.65, lng: -74.08 }] } };
+      const trackingRequests = [];
+      await page.route(`${api}/v1/rutas/${id}/seguimiento**`, (route) => {
+        const params = new URL(route.request().url()).searchParams;
+        trackingRequests.push(Object.fromEntries(params));
+        return route.fulfill({ json: { parada: { direccion: "Sede destino" }, origen: params.has("lat") ? { lat: Number(params.get("lat")), lng: Number(params.get("lng")) } : null, tramo: params.has("lat") ? { trayecto: { coordinates: [[-74.08, 4.65], [-74.10, 4.67]] }, distancia_km: 2, duracion_min: 5, llegada_estimada: new Date().toISOString(), proveedor: "GOOGLE" } : null } });
+      });
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.goto(`${base}/#/donaciones`);
+      await page.getByText("DON-INICIAL", { exact: true }).first().waitFor();
+      state.activityRows["/v1/donaciones"] = [{ id, codigo: "DON-ACTUALIZADA", estado: "ASIGNADA" }];
+      state.broadcast("banco:donaciones", "donacion_estado", { id, estado: "ASIGNADA" });
+      await page.getByText("DON-ACTUALIZADA", { exact: true }).first().waitFor();
+      await page.goto(`${base}/#/rutas`);
+      await page.getByText("Esperando una ubicación reciente del vehículo.", { exact: true }).waitFor();
+      state.broadcast(`ruta:${id}`, "ubicacion", { lat: 4.69123, lng: -74.08123 });
+      await page.getByText("Posición recibida en vivo.", { exact: true }).waitFor();
+      await page.getByText("Próxima parada:", { exact: false }).waitFor();
+      assert(trackingRequests.some((q) => q.lat === "4.69123" && q.lng === "-74.08123"));
+      const mapsBefore = await page.evaluate(() => window.__mapCount);
+      const update = page.waitForRequest((request) => request.url().includes("/seguimiento?") && new URL(request.url()).searchParams.get("lat") === "4.69124");
+      state.broadcast(`ruta:${id}`, "ubicacion", { lat: 4.69124, lng: -74.08124 });
+      await update;
+      assert.equal(await page.evaluate(() => window.__mapCount), mapsBefore);
+      assert(state.realtimeJoins.every((join) => join.payload.config.private === true));
+      assert(!(await page.evaluate(() => JSON.stringify(Object.entries(localStorage)))).includes("4.69123"));
+    });
+    await scenario("inventario FEFO y reporte de acciones", async ({ page, login }) => {
+      const now = Date.now();
+      const lots = Array.from({ length: 101 }, (_, i) => ({
+        lote_id: `lot-${i}`, codigo_lote: `LOTE-${String(i).padStart(3, "0")}`, tipo_alimento: "Fruta",
+        almacen: "Central", cantidad_disponible: 1, unidad: "KG", peso_disponible_kg: 1,
+        requiere_refrigeracion: i % 2 === 0,
+        fecha_vencimiento: i === 100 ? new Date(now + 3600000).toISOString() : i === 0 ? null : new Date(now + 10 * 86400000).toISOString(),
+      }));
+      await page.route(`${api}/v1/inventario/lotes?**`, async (route) => {
+        const start = Number(new URL(route.request().url()).searchParams.get("desplazamiento"));
+        await route.fulfill({ json: { datos: lots.slice(start, start + 100), total: lots.length } });
+      });
+      await login();
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.goto(`${base}/#/inventario`);
+      await page.getByRole("table", { name: "Inventario FEFO" }).waitFor();
+      assert.equal(await page.locator("tbody tr").first().locator("td").nth(1).innerText(), "LOTE-100");
+      assert.equal(await page.locator(".summary-value").nth(0).innerText(), "101");
+      assert.equal(await page.locator(".summary-value").nth(1).innerText(), "1");
+      assert.equal(await page.locator(".summary-value").nth(3).innerText(), "101 kg");
+      assert.equal(await page.getByRole("link", { name: "Distribuciones", exact: true }).count(), 0);
+      assert.equal(await page.getByRole("link", { name: "Incidencias", exact: true }).count(), 0);
+      await page.screenshot({ path: require("node:path").join(require("node:os").tmpdir(), "findfood-inventory-preview.png"), fullPage: true });
+      await page.getByLabel("Buscar producto o lote").fill("LOTE-000");
+      assert.equal(await page.locator("tbody tr").count(), 1);
+      assert.equal(await page.locator("tbody tr").first().locator("td").first().innerText(), "—");
+      await page.evaluate(async () => {
+        const { apiRequest } = await import("/src/integration/http.ts");
+        await apiRequest("/me", { method: "PATCH", body: JSON.stringify({ nombres: "Ana", password: "secret-test" }) });
+      });
+      await page.goto(`${base}/#/reportes`);
+      await page.getByRole("heading", { name: "Reporte de auditorías", exact: true }).waitFor();
+      const table = page.getByRole("table", { name: "Reporte de auditorías" });
+      await table.getByText("Editó", { exact: true }).waitFor();
+      assert.equal(await table.locator("tbody tr").count(), 1);
+      assert.equal(await page.getByText("Conexión API activa", { exact: true }).count(), 0);
+      assert.equal(await page.getByText("Datos de la API", { exact: true }).count(), 0);
+      const stored = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => k.startsWith("findfood:audit:")).map(([, v]) => v).join(""));
+      assert(!stored.includes("secret-test"));
+      await page.reload();
+      await page.getByRole("table", { name: "Reporte de auditorías" }).getByText("Editó", { exact: true }).waitFor();
+      const download = page.waitForEvent("download");
+      await page.getByRole("button", { name: "Exportar reporte" }).click();
+      assert.equal((await download).suggestedFilename(), "reporte-auditorias.csv");
+      await page.getByLabel("Módulo", { exact: true }).selectOption("Perfil");
+      assert.equal(await page.getByRole("table").locator("tbody tr").count(), 1);
+      await page.route(`${api}/v1/me`, (route) => route.fulfill({ status: 500, json: { title: "Error simulado" } }));
+      await page.evaluate(async () => {
+        const { apiRequest } = await import("/src/integration/http.ts");
+        try { await apiRequest("/me", { method: "PATCH", body: "{}" }); } catch { /* Expected failure must not appear as a successful action. */ }
+      });
+      assert.equal(await page.getByRole("table").locator("tbody tr").count(), 1);
+      await page.screenshot({ path: require("node:path").join(require("node:os").tmpdir(), "findfood-audit-preview.png"), fullPage: true });
+    });
     await scenario(
       "login, KPIs, persistencia, filtros, paginación, vacío, detalle, error y logout",
       async ({ page, state, login }) => {
@@ -831,17 +1191,17 @@ const jwt = () =>
       await login();
       await page.getByText("Donaciones creadas", { exact: true }).waitFor();
       await page.goto(`${base}/#/rutas`);
-      await page.getByRole("img", { name: "Mapa de la ruta RUTA-UNO", exact: true }).waitFor();
+      await page.locator('.google-route-map[data-zoom]').waitFor();
       await page.getByText("Paradas conectadas en orden. La API no incluye el trazado GPS del recorrido.", { exact: true }).waitFor();
       if (process.env.TEST_SCREENSHOT_DIR) await page.screenshot({ path: require("node:path").join(process.env.TEST_SCREENSHOT_DIR, "routes-map.png"), fullPage: true });
-      const before = await page.locator(".route-map-canvas polyline").last().getAttribute("points");
+      const before = await page.locator(".google-route-map").getAttribute("data-zoom");
       await page.getByRole("button", { name: "Acercar mapa" }).click();
-      assert.notEqual(await page.locator(".route-map-canvas polyline").last().getAttribute("points"), before);
+      assert.notEqual(await page.locator(".google-route-map").getAttribute("data-zoom"), before);
       await page.getByLabel("Ruta seleccionada", { exact: true }).selectOption(userId(2));
       await page.getByText("Esta ruta no incluye coordenadas para mostrar el mapa.", { exact: true }).waitFor();
       assert.equal(await page.locator(".route-map-canvas").count(), 0);
       await page.getByLabel("Ruta seleccionada", { exact: true }).selectOption(id);
-      await page.getByRole("img", { name: "Mapa de la ruta RUTA-UNO", exact: true }).waitFor();
+      await page.locator('.google-route-map[data-zoom]').waitFor();
       state.routeRows.unshift({ id: userId(3), codigo: "RUTA-NUEVA", estado: "PLANIFICADA", paradas: 0 });
       await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
       await page.getByRole("link", { name: "Abrir notificaciones, 2 sin leer", exact: true }).waitFor();
@@ -990,7 +1350,7 @@ const jwt = () =>
           .getByRole("button", { name: "Enviar instrucciones", exact: true })
           .click();
         await page
-          .getByText("Si el correo está registrado,", { exact: false })
+          .getByText("Si la cuenta puede usar el panel,", { exact: false })
           .waitFor();
         assert(state.recoverySent);
         assert.equal(
@@ -1025,7 +1385,7 @@ const jwt = () =>
       await page.goto(`${base}/#/restablecer-contrasena`);
       await page
         .getByRole("alert")
-        .filter({ hasText: "Abre el enlace" })
+        .filter({ hasText: "Verifica el código" })
         .waitFor();
       assert.equal(
         await page
@@ -1034,7 +1394,7 @@ const jwt = () =>
         0,
       );
       await page
-        .getByRole("link", { name: "Solicitar enlace", exact: true })
+        .getByRole("link", { name: "Solicitar código", exact: true })
         .click();
       await page
         .getByRole("button", { name: "Enviar instrucciones", exact: true })
@@ -1275,7 +1635,7 @@ const jwt = () =>
           );
         }
         await page.goto(`${base}/#/reportes`);
-        await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+        await page.getByRole("heading", { name: "Reporte de auditorías", exact: true }).waitFor();
         await page.getByRole("link", { name: /Abrir notificaciones/ }).click();
         await page
           .getByRole("dialog")
@@ -1298,69 +1658,6 @@ const jwt = () =>
           .getByRole("button", { name: "Reintentar", exact: true })
           .click();
         await page.getByText("DON-REAL", { exact: true }).waitFor();
-      },
-    );
-    await scenario(
-      "nuevo almacén: sugerencias de Google llenan dirección y coordenadas",
-      async ({ page, state, login }) => {
-        await login();
-        await page.getByText("Donaciones creadas", { exact: true }).waitFor();
-        await page.goto(`${base}/#/almacenes`);
-        await page
-          .getByRole("button", { name: "Nuevo almacén", exact: true })
-          .click();
-        let panel = page.getByRole("dialog").last();
-        await panel.getByLabel("Dirección", { exact: true }).fill("Calle 12 34");
-        await panel
-          .getByRole("button", { name: /Calle 12 #34-56/ })
-          .click();
-        // La lista se cierra cuando el lugar elegido ya llenó el formulario.
-        await panel.locator(".place-suggestions").waitFor({ state: "detached" });
-        assert.equal(
-          await panel.getByLabel("Dirección", { exact: true }).inputValue(),
-          "Cl. 12 #34-56, Bogotá, Colombia",
-        );
-        // Seis decimales: el step de los campos numéricos no admite más.
-        assert.equal(await panel.getByLabel("Latitud").inputValue(), "4.601235");
-        assert.equal(await panel.getByLabel("Longitud").inputValue(), "-74.071235");
-        const searches = state.requests.filter(
-          (r) => r.path === "/v1/geo/autocompletar",
-        );
-        assert.equal(searches.length, 1);
-        const place = state.requests.find((r) =>
-          r.path.startsWith("/v1/geo/lugares/"),
-        );
-        assert.equal(place.params.sesion, searches[0].params.sesion);
-        // Sin llave de Google en el panel no hay mini-mapa: el punto se corrige a mano.
-        assert.equal(await panel.locator(".place-map").count(), 0);
-        await panel.getByLabel("Nombre", { exact: true }).fill("Sede Google");
-        await panel.getByLabel("Almacenamiento").selectOption("SECO");
-        await panel.getByLabel("Capacidad (kg)").fill("500");
-        await panel.getByRole("button", { name: "Confirmar", exact: true }).click();
-        await page.getByRole("dialog").last().waitFor({ state: "hidden" });
-        const created = state.requests.find(
-          (r) => r.path === "/v1/almacenes" && r.method === "POST",
-        );
-        assert.deepEqual(JSON.parse(created.body), {
-          nombre: "Sede Google",
-          direccion: "Cl. 12 #34-56, Bogotá, Colombia",
-          ubicacion: { lat: 4.601235, lng: -74.071235 },
-          tipo: "SECO",
-          capacidad_kg: 500,
-        });
-
-        state.geoUnavailable = true;
-        await page
-          .getByRole("button", { name: "Nuevo almacén", exact: true })
-          .click();
-        panel = page.getByRole("dialog").last();
-        await panel.getByLabel("Dirección", { exact: true }).fill("Carrera 7");
-        await panel
-          .getByText(
-            "La búsqueda de direcciones no está disponible: escribe la dirección y las coordenadas.",
-            { exact: true },
-          )
-          .waitFor();
       },
     );
     await scenario(
@@ -1531,7 +1828,7 @@ const jwt = () =>
           .getByRole("button", { name: "Ver", exact: true })
           .first()
           .click();
-        assert.equal(await page.locator('input[type="file"]').count(), 0);
+        assert.equal(await page.locator('input[type="file"]').count(), 1);
         await page.goto(`${base}/#/incidencias`);
         await page
           .getByRole("button", { name: "Nueva incidencia", exact: true })
@@ -1724,7 +2021,7 @@ const jwt = () =>
       },
     );
     await scenario(
-      "evidencias de solo lectura, fotos, renovación y errores",
+      "consulta de evidencias, fotos, renovación y errores",
       async ({ page, state, login }) => {
         const imageHost = "https://images.findfood.test";
         await page.route(`${imageHost}/**`, (route) => {
@@ -1752,8 +2049,6 @@ const jwt = () =>
         await page.getByText("Donaciones creadas", { exact: true }).waitFor();
         for (const path of [
           "donaciones",
-          "recepciones",
-          "incidencias",
           "rutas",
         ]) {
           await page.goto(`${base}/#/${path}`);
@@ -1922,7 +2217,7 @@ const jwt = () =>
       },
     );
     await scenario(
-      "permisos de menú, rutas de consulta y almacenes",
+      "permisos de menú, rutas y almacenes",
       async ({ page, state, login }) => {
         state.roles = ["ASESOR_BANCO"];
         state.stock = [
@@ -1983,7 +2278,6 @@ const jwt = () =>
             .waitFor();
           for (const name of [
             "Iniciar ruta",
-            "Cancelar ruta",
             "Registrar llegada",
             "Confirmar parada",
             "Reportar parada fallida",
@@ -1993,6 +2287,7 @@ const jwt = () =>
               await panel.getByRole("button", { name, exact: true }).count(),
               0,
             );
+          assert.equal(await panel.getByRole("button", { name: "Cancelar ruta", exact: true }).count(), 1);
           assert.equal(
             await panel.getByLabel("Imagen de evidencia").count(),
             0,
@@ -2117,7 +2412,7 @@ const jwt = () =>
           .getByRole("button", { name: "Reintentar inventario" })
           .click();
         await page.getByText("No hay almacenes registrados.").first().waitFor();
-        await page.getByText("0 kg", { exact: true }).waitFor();
+        await page.locator(".inventory-total").getByText("0 kg", { exact: true }).waitFor();
         state.stock = [{ id, nombre: "Sede Norte", kg_en_inventario: null }];
         await page.evaluate(() =>
           window.dispatchEvent(new Event("findfood:data-changed")),
@@ -2347,3 +2642,7 @@ const jwt = () =>
   devServer?.kill();
   process.exit(1);
 });
+
+
+
+

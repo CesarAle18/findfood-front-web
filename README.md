@@ -1,68 +1,49 @@
-# FindFood Web
+﻿# FindFood Web
 
-Integración del panel con la rama Conexion_Front de la API: consulta [la guía de conexión](docs/conexion-web.md) para configurar `.env.local`, CORS y Supabase. El modo predeterminado es `api`; para recorrer el diseño utiliza `VITE_DATA_MODE=demo`.
+Panel administrativo en React, Vite y TypeScript para ADMIN y ASESOR_BANCO. El modo predeterminado `api` usa Supabase Auth, la API de FindFood y canales privados de Realtime. El modo `demo` permite recorrer el diseño con datos de ejemplo.
 
-# Find Food web
+La integración actual se contrastó con la rama `Generacion-de-rutas-dinamicas` de la API, commit `a518f9dfab720e2225cb48a430d1daac7b441434`.
 
-Frontend web en React, Vite y TypeScript, basado en `Mock Up Proyecto de grado.fig`. Incluye módulos operativos, formularios y paneles laterales navegables. Es una demostración visual sin backend ni autenticación real.
+- [Revisión de requerimientos del manual y matriz de cumplimiento](docs/revision-requerimientos-web.md).
+- [Configuración, permisos y conexión](docs/conexion-web.md).
+- [Inventario de pantallas del diseño](docs/pantallas.md).
 
 ## Ejecutar
 
-Usar Node.js 22.13 o posterior (Node 24 recomendado) y npm. Extraer Findfood_Web.zip, abrir la carpeta findfood-front-web y ejecutar:
+Usar Node 24 o posterior y npm:
 
-```bash
+```powershell
 npm ci
 npm run dev
 ```
 
-Abrir la dirección que indique Vite, normalmente http://localhost:5173. Detener con Ctrl+C. Este proyecto no utiliza Expo ni QR.
+Crear `.env.local` a partir de `.env.example` y configurar API, Supabase y Google Maps. Las variables `VITE_` son públicas: no incluir credenciales del servidor. Reiniciar Vite al modificarlas. Ajustar CORS en la API y usar el mismo proyecto de Supabase.
 
-## Recorrer
+## Operación del panel
 
-Iniciar sesión abre el dashboard sin autenticar. El menú lateral conecta los módulos. La campana abre notificaciones; el avatar permite cambiar contraseña o volver al login. «Ver todas las pantallas» abre una galería con 23 destinos que cubren los 24 marcos web (dos variantes de recepción comparten pantalla).
+Incluye usuarios internos y verificación de voluntarios, donaciones/historial/candidatos/reasignación, planificación y operación manual de flota, entrega en sede, recepción, inventario FEFO y ajustes, sedes, distribuciones, incidencias, alertas, evidencias, notificaciones, indicadores por periodo y configuración del banco/alimentos/asignación/tareas. Los permisos efectivos son los de la API; ADMIN no hereda las operaciones exclusivas de ASESOR_BANCO.
 
-En las tablas, «Ver» abre detalles, «Editar» abre un formulario y los botones «Nuevo» muestran el formulario correspondiente. Los filtros y búsquedas funcionan con datos de ejemplo. En Usuarios, «Voluntarios pendientes» permite revisar postulantes y abrir su detalle. Configuración permite mover ponderaciones y cambiar las paradas para revisar estados visuales. No se guarda ningún cambio.
+Inicio ofrece accesos a distribuciones e incidencias. Configuración incorpora Asignación, Banco y flota, Alimentos y Tareas. Reportes conserva el registro local de acciones; no es una bitácora compartida del backend. La matriz de requerimientos identifica las limitaciones pendientes.
 
-Las acciones que necesitan servicios están deshabilitadas: crear, guardar, aprobar/rechazar, enviar instrucciones, ofertar, confirmar recepción, exportar reporte y actualizar contraseña. No se solicitan cámara, ubicación ni datos externos. Las fotografías son placeholders y los mapas de las páginas demo son esquemas sin geolocalización. En modo `api`, Rutas y «Nuevo almacén» usan Google Maps (ver docs/conexion-web.md).
+La recuperación del panel usa un código enviado por la API y verificado en Supabase. La plantilla Reset Password debe mostrar `{{ .Token }}`. La aplicación también conserva el manejo de sesiones de recuperación recibidas por enlace.
 
 ## Estructura
 
-- src/pages: pantallas de acceso, gestión y operación.
-- src/components: controles, mapas ilustrativos, notificaciones y drawer accesible mediante dialog nativo.
-- src/domain: modelos de presentación.
-- src/data: registros, configuración de tablas y galería.
-- src/services: puerto de lectura y adaptador de demostración.
-- src/state: contexto de datos y navegación por hash.
-- public/brand y public/fonts: logotipo e Inter locales.
-- docs/integracion-backend.md: guía y límites de preparación para backend.
-- docs/pantallas.md: inventario del Figma.
+- `src/integration`: servicios y pantallas conectados, sesión, Realtime y operaciones.
+- `src/pages`, `src/data`, `src/services`: presentación y adaptador de demostración.
+- `src/components`: controles y drawers compartidos.
+- `public/brand`, `public/fonts`: identidad visual.
+- `scripts/check-integration.cjs`: pruebas de navegador con servicios simulados.
 
-## Verificar y compilar
+## Validar y compilar
 
-```bash
+```powershell
 npm run lint
 npm run test:render
 npm run build
-npm run preview
+npm run test:integration
 ```
 
-Build incluye la comprobación TypeScript y genera dist. Las pruebas de renderizado comprueban pantallas, enlaces internos y registros inexistentes mediante React DOM Server, sin navegador; no prueban clics ni apariencia visual. El entorno de revisión bloquea el servidor local, por lo que queda pendiente revisar la UI en navegador. No se garantiza fidelidad píxel a píxel.
+Las pruebas de integración inician Vite en 5178 e interceptan API, Auth, Storage, Maps y WebSocket. Requieren Chromium de Playwright (`npx playwright install chromium`) o `TEST_CHROMIUM_PATH` apuntando a Edge/Chrome. No usan cuentas reales ni modifican `.env.local`. `TEST_SCENARIO` permite seleccionar un escenario por su nombre.
 
-## Publicar más adelante
-
-`dist` es una salida estática. Las rutas por hash facilitan recargar enlaces sin reglas de reescritura. Esta entrega no publica el sitio ni actualiza GitHub. No desplegar como aplicación real con usuarios hasta integrar seguridad y backend.
-
-
-## Ajustes de formularios y navegación
-
-Nueva recepción permite seleccionar voluntario y conserva su identificador al revisar la recepción de ejemplo. Nueva donación admite añadir y quitar productos con datos independientes; ubicación y horario son compartidos. Los cambios son locales y no se guardan. Usuarios incluye el submenú Voluntarios pendientes. La configuración de paradas permite de 1 a 5; no incluye la pestaña decorativa Asignación.
-
-Se retiraron la tarjeta Alertas de capacidad, el filtro y columna Ciudad del listado de voluntarios y el enlace duplicado Ver detalle de postulantes. El selector de régimen de almacén ofrece Seco y Refrigerado.
-
-## Cambios: donaciones y navegación
-- Donaciones: la acción Asignar abre `#/asignaciones?id=ID` y muestra los datos de esa fila. No aparece Nueva donación en el listado.
-- Asignaciones sin ID solicita elegir una donación; un ID inexistente muestra un mensaje y permite volver al listado. Candidatos y puntajes siguen siendo ilustrativos.
-- Un único AM en la parte superior izquierda de la cabecera, con su menú de cuenta. Se elimina el perfil inferior del sidebar.
-- Usuarios → Lista de voluntarios → Ver pendientes.
-
-Se conserva el alcance de frontend con navegación local, sin backend.
+Build genera `dist`. Las pruebas simuladas no certifican las políticas de Supabase, el despliegue, la facturación, el SMTP ni las reglas transaccionales de una base real. La lista de verificaciones del entorno está en la revisión de requerimientos.

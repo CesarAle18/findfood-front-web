@@ -1,4 +1,4 @@
-import { readPaths } from "./integration/read-paths";
+﻿import { readPaths } from "./integration/read-paths";
 import {
   ReadScreen,
   NotificationsRead,
@@ -139,14 +139,6 @@ export default function App({
   const config = modules[key];
 
   const additionalHeadings: Record<string, string[]> = {
-    "/distribuciones": [
-      "Distribuciones",
-      "Gestiona las salidas de alimentos a beneficiarios.",
-    ],
-    "/incidencias": [
-      "Incidencias",
-      "Registra y resuelve novedades de la operación.",
-    ],
     "/alertas": [
       "Alertas de inventario",
       "Consulta y atiende alertas de los lotes.",
@@ -155,8 +147,8 @@ export default function App({
   const heading =
     auth && route.pathname === "/reportes"
       ? [
-          "Reportes",
-          "Consulta los indicadores de donaciones, asignación e inventario.",
+          "Reporte de auditorías",
+          "Trazabilidad de acciones realizadas en la plataforma.",
         ]
       : additionalHeadings[route.pathname]
         ? additionalHeadings[route.pathname]
@@ -392,12 +384,6 @@ export default function App({
                 );
               })}
           </nav>
-
-          <div className="sidebar-bottom">
-            <span className="demo-pill">
-              {auth ? "Conexión API activa" : "Datos de demostración"}
-            </span>
-          </div>
         </aside>
 
         <button
@@ -509,11 +495,6 @@ export default function App({
 
           <footer className="app-footer">
             Find Food · Banco de alimentos
-            <span>
-              {auth && connectedPage
-                ? "Datos de la API"
-                : "Vista de demostración"}
-            </span>
           </footer>
         </main>
       </div>
@@ -539,3 +520,6 @@ export default function App({
     </DataContext.Provider>
   );
 }
+
+
+

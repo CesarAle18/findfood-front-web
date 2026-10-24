@@ -1,10 +1,14 @@
-# Find Food web
+﻿# Find Food web
 
 ## Plataforma y propósito
 Aplicación web de operación para el banco de alimentos. React 19, Vite 8 y TypeScript, a partir del repositorio findfood-front-web. Usuarios de referencia: administrador y personal que gestiona donaciones, voluntarios, rutas, recepción e inventario.
 
-## Alcance autorizado
-Frontend basado en Mock Up Proyecto de grado.fig. Navegación de demostración, filtros y selección locales, formularios editables sin persistencia. No hay backend, autenticación, autorizaciones, correo, almacenamiento, GPS, generación de rutas ni exportación real de reportes. (Actualizado: en modo `api` el panel usa Google Maps para el mapa de rutas y para buscar la dirección de un almacén nuevo; ver docs/conexion-web.md.) Las acciones de negocio están deshabilitadas. Los datos son ejemplos del diseño, con estados ilustrativos. No existe validación de negocio definitiva.
+## Alcance actual
+
+Actualización 23/10/2026: el usuario autorizó la integración funcional según el manual técnico y la rama Generacion-de-rutas-dinamicas. El panel usa Auth, API, Realtime, Storage y Google Maps; consultar docs/revision-requerimientos-web.md. El párrafo siguiente conserva el alcance histórico del cascarón, aplicable únicamente al modo demo.
+
+### Alcance histórico de demostración
+Frontend basado en Mock Up Proyecto de grado.fig. Navegación de demostración, filtros y selección locales, formularios editables sin persistencia. No hay backend, autenticación, autorizaciones, correo, almacenamiento, Google Maps, GPS, generación de rutas ni exportación real de reportes. Las acciones de negocio están deshabilitadas. Los datos son ejemplos del diseño, con estados ilustrativos. No existe validación de negocio definitiva.
 
 ## Dirección visual
 Modo Operate. Mantener la identidad verde, Inter, logotipo original, fondo muy claro, sidebar blanca, tablas de gestión y paneles laterales. Vista principal de referencia 1440 × 1024. La web administrativa y la app móvil son proyectos separados.
@@ -14,3 +18,4 @@ Modo Operate. Mantener la identidad verde, Inter, logotipo original, fondo muy c
 
 ## Validación
 Compilación y pruebas de renderizado de fuente. El navegador remoto no puede acceder al servidor local en este entorno; no afirmar revisión visual ni fidelidad píxel a píxel.
+

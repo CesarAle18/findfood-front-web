@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { apiRequest, errorMessage } from "./http";
 
-export function useRead<T>(endpoint: string | null, pollMs = 0) {
+export function useRead<T>(endpoint: string | null, pollMs = 0, load?: (endpoint: string, signal: AbortSignal) => Promise<T>) {
   const pending = useRef<AbortController | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{
@@ -13,7 +13,7 @@ export function useRead<T>(endpoint: string | null, pollMs = 0) {
     if (!endpoint) return;
     const controller = new AbortController();
     pending.current = controller;
-    apiRequest<T>(endpoint, { signal: controller.signal }).then(
+    (load ? load(endpoint, controller.signal) : apiRequest<T>(endpoint, { signal: controller.signal })).then(
       (data) => {
         if (!controller.signal.aborted) setResult({ endpoint, data });
       },
@@ -25,7 +25,7 @@ export function useRead<T>(endpoint: string | null, pollMs = 0) {
       if (pending.current === controller) pending.current = null;
     });
     return () => controller.abort();
-  }, [endpoint, attempt]);
+  }, [endpoint, attempt, load]);
   useEffect(() => {
     const refresh = () => {
       setAttempt((n) => n + 1);

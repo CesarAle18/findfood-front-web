@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Card, Metrics } from "../components/ui";
 import type { Kpis } from "./contracts";
-import { dashboardService } from "./services";
-import { errorMessage } from "./http";
+import { apiRequest, errorMessage } from "./http";
 import { useRead } from "./read";
 
 interface WarehouseStock {
@@ -84,13 +83,24 @@ function InventorySummary() {
   );
 }
 export function DashboardLive() {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [range, setRange] = useState("");
+  return <div className="form-stack"><Card><form className="audit-filters dashboard-period" onSubmit={(event) => {
+    event.preventDefault();
+    const params = new URLSearchParams();
+    if (from) params.set("desde", new Date(`${from}T00:00:00-05:00`).toISOString());
+    if (to) params.set("hasta", new Date(Date.parse(`${to}T00:00:00-05:00`) + 86400000).toISOString());
+    setRange(params.toString());
+  }}><label>Desde<input type="date" aria-label="Indicadores desde" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label><label>Hasta<input type="date" aria-label="Indicadores hasta" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label><button className="button" type="submit">Consultar periodo</button><button className="button secondary" type="button" onClick={() => { setFrom(""); setTo(""); setRange(""); }}>Últimos 30 días</button></form></Card><DashboardSummary key={range} range={range} /><Card title="Operación del banco"><div className="card-actions"><a className="button secondary" href="#/alertas">Consultar alertas</a></div></Card></div>;
+}
+function DashboardSummary({ range }: { range: string }) {
   const [data, setData] = useState<Kpis | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    dashboardService
-      .get(controller.signal)
+    apiRequest<Kpis>(`/kpis/resumen${range ? `?${range}` : ""}`, { signal: controller.signal })
       .then((result) => {
         if (!controller.signal.aborted) setData(result);
       })
@@ -98,7 +108,7 @@ export function DashboardLive() {
         if (!controller.signal.aborted) setError(errorMessage(err));
       });
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, range]);
   useEffect(() => {
     const refresh = () => setAttempt((n) => n + 1);
     window.addEventListener("findfood:data-changed", refresh);
@@ -154,11 +164,19 @@ export function DashboardLive() {
           ],
         ]}
       />
+      <details className="dashboard-extra"><summary>Ver indicadores adicionales</summary>
+      <Metrics items={[
+        ["Tasa de expiración", data.asignacion.tasa_expiracion == null ? "Sin datos" : `${(data.asignacion.tasa_expiracion * 100).toFixed(1)} %`, "Sobre donaciones publicadas"],
+        ["Ofertas por donación", data.asignacion.ofertas_por_donacion == null ? "Sin datos" : data.asignacion.ofertas_por_donacion.toFixed(2), "Promedio del periodo"],
+        ["Merma y vencimiento", `${data.inventario.kg_merma.toLocaleString("es-CO")} kg`, "Salidas del periodo"],
+      ]} />
+      <Card title="Donaciones por estado"><div className="table-scroll"><table aria-label="Donaciones por estado"><thead><tr><th>Estado</th><th>Cantidad</th></tr></thead><tbody>{([ ["Publicadas", "publicadas"], ["Recibidas", "recibidas"], ["Rechazadas", "rechazadas"], ["Expiradas", "expiradas"], ["Canceladas", "canceladas"] ] as const).map(([label, key]) => <tr key={key}><td>{label}</td><td>{data.donaciones[key] ?? "—"}</td></tr>)}</tbody></table></div><p className="muted">Publicadas cuenta las donaciones creadas en el periodo que llegaron a publicarse; los otros estados corresponden a su estado actual para las donaciones creadas en el periodo.</p></Card>
+      </details>
       <InventorySummary />
       <Card title="Recepciones por almacén">
         <p>
-          Periodo: {new Date(data.desde).toLocaleDateString("es-CO")} a{" "}
-          {new Date(data.hasta).toLocaleDateString("es-CO")}
+          Periodo: {new Date(data.desde).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })} a{" "}
+          {new Date(data.hasta).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}
         </p>
         <div className="table-scroll">
           <table>
@@ -193,3 +211,8 @@ export function DashboardLive() {
     </>
   );
 }
+
+
+
+
+

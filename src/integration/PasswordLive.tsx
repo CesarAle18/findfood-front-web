@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Card, Field } from "../components/ui";
 import { useSession } from "./session-context";
 import { supabase, verifyCurrentPassword } from "./supabase";
@@ -20,12 +20,12 @@ export function PasswordLive({
   const validRecovery = !recovery || (auth.session && auth.recovery);
   if (!validRecovery)
     return (
-      <Card title="Enlace de recuperación requerido">
+      <Card title="Recuperación de acceso requerida">
         <p role="alert">
-          Abre el enlace enviado a tu correo. Si venció, solicita uno nuevo.
+          Verifica el código enviado a tu correo. Si venció, solicita uno nuevo.
         </p>
         <a className="button" href="#/recuperar-contrasena">
-          Solicitar enlace
+          Solicitar código
         </a>
       </Card>
     );
@@ -160,3 +160,4 @@ export function PasswordLive({
     </div>
   );
 }
+

@@ -45,7 +45,7 @@ const units: Input = {
     key: "unidades_medida",
   },
 };
-export function ReceptionLive({ id }: { id: string }) {
+export function ReceptionLive({ id, onSaved }: { id: string; onSaved?: (status: string) => void }) {
   const auth = useSession()!,
     read = useRead<Row>(`/donaciones/${encodeURIComponent(id)}`);
   const [status, setStatus] = useState("ACEPTADA"),
@@ -113,7 +113,8 @@ export function ReceptionLive({ id }: { id: string }) {
               }),
             });
             window.dispatchEvent(new Event("findfood:data-changed"));
-            window.location.hash = "/recepciones";
+            if (onSaved) onSaved(status);
+            else window.location.hash = "/recepciones";
           } catch (err) {
             setError(errorMessage(err));
           } finally {
