@@ -62,6 +62,7 @@ const labels: Record<string, string> = {
   almacen_destino: "Almacén de destino",
   usuario: "Usuario",
   voluntario: "Voluntario",
+  url_foto_vehiculo: "Foto del vehículo",
   url_documento_frente: "Documento (frente)",
   url_documento_reverso: "Documento (reverso)",
   url_selfie: "Selfie",

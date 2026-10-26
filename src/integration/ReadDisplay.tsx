@@ -63,6 +63,7 @@ export function DataDetails({
                   {((collection === "documentos" &&
                     ["frente", "reverso", "selfie"].includes(key)) || [
                     "foto_url",
+                    "url_foto_vehiculo",
                     "url_lectura",
                     "url_documento_frente",
                     "url_documento_reverso",
