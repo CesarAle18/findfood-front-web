@@ -29,6 +29,7 @@ export function activityEvents(kind: ActivityKind, rows: Row[], previous: Activi
       events.push({ id: `${kind}:${id}`, titulo: kind === "pending" && previous === null ? "Tienes un voluntario pendiente reciente" : definition.title, cuerpo: description, href: definition.href });
     }
     if (old && old.estado !== estado) {
+      if (kind === "donation" && estado === "CANCELADA") events.push({ id: `donation-cancelled:${id}`, titulo: "Se canceló una donación", cuerpo: description, href: definition.href });
       if (kind === "donation" && estado === "EXPIRADA") events.push({ id: `donation-expired:${id}`, titulo: "Una donación se ha vencido", cuerpo: description, href: definition.href });
       if (kind === "route" && estado === "COMPLETADA") events.push({ id: `route-completed:${id}`, titulo: "Una ruta ha finalizado", cuerpo: description, href: definition.href });
       if (kind === "user" && estado === "ACTIVO" && ["PENDIENTE", "PENDIENTE_VERIFICACION"].includes(old.estado)) events.push({ id: `user-approved:${id}`, titulo: "Se aprobó un usuario", cuerpo: description, href: definition.href });

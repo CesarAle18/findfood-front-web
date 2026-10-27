@@ -72,11 +72,12 @@ export async function apiRequest<T>(
     });
   }
   const method = (options.method ?? "GET").toUpperCase();
+  const result: unknown = response.status === 204 ? undefined : await response.json();
   if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
     const user = data.session.user;
-    recordAudit(user.id, String(user.email ?? user.id), path, method);
+    recordAudit(user.id, String(user.email ?? user.id), path, method, options.body, result);
   }
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  return result as T;
 }
 

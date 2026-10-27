@@ -26,6 +26,7 @@ for (const kind of ["route", "donation", "user", "volunteer"]) {
 for (const [kind, from, to, event] of [
   ["route", "EN_CURSO", "COMPLETADA", "route-completed"],
   ["donation", "PUBLICADA", "EXPIRADA", "donation-expired"],
+  ["donation", "ASIGNADA", "CANCELADA", "donation-cancelled"],
   ["user", "PENDIENTE", "ACTIVO", "user-approved"],
 ]) {
   const result = activityEvents(kind, [{ id: "one", estado: to }], { one: { estado: from } }, now);

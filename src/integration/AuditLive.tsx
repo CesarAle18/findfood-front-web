@@ -3,6 +3,7 @@ import { Card, Drawer } from "../components/ui";
 import { useSession } from "./session-context";
 import { useAudit, type AuditEntry } from "./audit";
 import { textValue } from "./read-format";
+import { DataDetails } from "./ReadDisplay";
 export function AuditLive() {
   const auth = useSession()!;
   const entries = useAudit(auth.session!.user.id);
@@ -29,7 +30,7 @@ export function AuditLive() {
       <button className="button" onClick={download} disabled={!visible.length}>Exportar reporte</button>
     </div></Card>
     <Card className="table-card"><p className="muted audit-scope">Acciones exitosas registradas desde este navegador y esta cuenta. Se conservan hasta 2.000 registros.</p><div className="table-scroll"><table aria-label="Reporte de auditorías"><thead><tr>{["Fecha / Hora", "Actor", "Módulo", "Acción", "Entidad", "Acciones"].map((h) => <th key={h}>{h}</th>)}</tr></thead><tbody>{visible.map((e) => <tr key={e.id}><td>{textValue(e.fecha)}</td><td>{e.actor}</td><td>{e.modulo}</td><td>{e.accion}</td><td className="audit-entity">{e.entidad}</td><td><button className="table-action" onClick={() => setSelected(e)}>Ver</button></td></tr>)}{!visible.length && <tr><td colSpan={6}>No hay acciones registradas para estos filtros. Las nuevas acciones aparecerán aquí al realizarlas.</td></tr>}</tbody></table></div></Card>
-    {selected && <Drawer title="Detalle de la acción" close="#/reportes" onClose={() => setSelected(null)}><dl>{[["Fecha", textValue(selected.fecha)], ["Actor", selected.actor], ["Módulo", selected.modulo], ["Acción", selected.accion], ["Entidad", selected.entidad]].map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl></Drawer>}
+    {selected && <Drawer title="Detalle de la acción" close="#/reportes" onClose={() => setSelected(null)}><DataDetails value={{ fecha: selected.fecha, actor: selected.actor, modulo: selected.modulo, accion: selected.accion, entidad: selected.entidad, metodo: selected.metodo, ...(selected.detalles ?? {}) }} /></Drawer>}
   </div>;
 }
 

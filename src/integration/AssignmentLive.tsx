@@ -5,6 +5,7 @@ import { DataDetails } from "./ReadDisplay";
 import { fieldLabel, fieldValue, textValue } from "./read-format";
 import { ActionButtons } from "./ActionForm";
 import { recordActions, type Row } from "./actions";
+import { canAssignDonation, donationDetails } from "./donation-display";
 
 function Facts({ value }: { value: Row }) {
   return <dl className="assignment-facts">{Object.entries(value).filter(([, v]) => v == null || typeof v !== "object").map(([key, v]) => <div key={key}><dt>{fieldLabel(key)}</dt><dd>{fieldValue(key, v)}</dd></div>)}</dl>;
@@ -18,7 +19,8 @@ export function AssignmentLive({ id }: { id: string }) {
   const candidateRows = Array.isArray(payload) ? payload : payload && typeof payload === "object" ? ((payload as Row).datos ?? (payload as Row).candidatos) : undefined;
   const rows: Row[] = Array.isArray(candidateRows) ? candidateRows.filter((r): r is Row => !!r && typeof r === "object") : [];
   const current = rows[selected] ?? rows[0];
-  const data = donation.data;
+  const data = donationDetails(donation.data) as Row | undefined;
+  if (data && !canAssignDonation(data)) return <Card title="Asignación no disponible"><p>Esta donación está {textValue(data.estado)} y no admite asignación.</p><a className="button secondary" href="#/donaciones">Volver a donaciones</a></Card>;
   const volunteer = current?.voluntario as Row | undefined;
   const breakdown = current?.desglose ?? current?.desglose_puntaje;
   return <div className="assignment-live">

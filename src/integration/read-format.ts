@@ -63,6 +63,8 @@ const labels: Record<string, string> = {
   usuario: "Usuario",
   voluntario: "Voluntario",
   url_foto_vehiculo: "Foto del vehículo",
+  entregada_at: "Fecha de llegada",
+  recibida_at: "Fecha de recepción",
   url_documento_frente: "Documento (frente)",
   url_documento_reverso: "Documento (reverso)",
   url_selfie: "Selfie",

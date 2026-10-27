@@ -1,0 +1,31 @@
+import type { Row } from "./actions";
+
+export function donationDetails(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(donationDetails).filter(hasContent);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value as Row)
+    .filter(([key]) => !["metadata", "registros", "historial"].includes(key))
+    .map(([key, item]) => [key, donationDetails(item)])
+    .filter(([, item]) => hasContent(item)));
+}
+
+function hasContent(value: unknown): boolean {
+  if (value == null) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+
+export function donationHistory(value: unknown): unknown {
+  if (!Array.isArray(value)) return [];
+  const rows = value.filter((row): row is Row => !!row && typeof row === "object" && row.ambito === "DONACION");
+  return ["ENTREGADA", "RECIBIDA"].flatMap((state) => {
+    const latest = rows.filter((row) => row.estado_nuevo === state)
+      .sort((a, b) => Date.parse(String(b.created_at)) - Date.parse(String(a.created_at)) || Number(b.id) - Number(a.id))[0];
+    return latest ? [donationDetails(latest)] : [];
+  });
+}
+
+export function canAssignDonation(row: Row): boolean {
+  return ["PUBLICADA", "EXPIRADA", "ASIGNADA"].includes(String(row.estado));
+}

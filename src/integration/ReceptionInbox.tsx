@@ -1,24 +1,5 @@
-﻿import { useState, type ReactNode } from "react";
-import { Card } from "../components/ui";
-import { useSession } from "./session-context";
-import { RouteReceptionForm } from "./RouteReceptionForm";
+﻿import type { ReactNode } from "react";
 
 export function ReceptionInbox({ history }: { history: ReactNode }) {
-  const advisor = useSession()?.profile?.roles.includes("ASESOR_BANCO");
-  const [creating, setCreating] = useState(false);
-  return (
-    <div className="form-stack">
-      {advisor && (
-        <Card>
-          <button className="button" onClick={() => setCreating(true)}>
-            Crear recepción
-          </button>
-        </Card>
-      )}
-      {history}
-      {advisor && creating && (
-        <RouteReceptionForm onClose={() => setCreating(false)} />
-      )}
-    </div>
-  );
+  return <div className="form-stack"><p>Para registrar una recepción, abre Donaciones y selecciona «Recibir» en una donación entregada.</p>{history}</div>;
 }

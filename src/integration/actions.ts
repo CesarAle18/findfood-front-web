@@ -1,4 +1,5 @@
 ﻿import type { Role } from "./contracts";
+import { canAssignDonation } from "./donation-display";
 export type Values = Record<string, string>;
 export type Row = Record<string, unknown>;
 export interface Source {
@@ -139,17 +140,17 @@ export function recordActions(path: string, row: Row): Action[] {
         ],
         body: (v) => ({ motivo_id: Number(v.motivo_id), ...remark(v) }),
       },
-      {
+      ...(canAssignDonation(row) ? [{
         key: "donation-reassign",
         label: "Reasignar donación",
         roles: staff,
         endpoint: `${prefix}/reasignar`,
-        method: "POST",
+        method: "POST" as const,
         description:
           "El motor volverá a evaluar candidatos y ofrecerá la donación según sus reglas de asignación.",
         fields: [note()],
         body: remark,
-      },
+      }] : []),
     ];
   if (path === "/pendientes" && row.estado === "PENDIENTE")
     return [

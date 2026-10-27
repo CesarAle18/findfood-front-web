@@ -107,8 +107,10 @@ export function DataDetails({
 export function ReadBody({
   endpoint,
   read: provided,
+  transform,
 }: {
   endpoint: string;
+  transform?: (value: unknown) => unknown;
   read?: {
     data?: unknown;
     error?: string;
@@ -130,5 +132,5 @@ export function ReadBody({
         </button>
       </div>
     );
-  return <DataDetails value={read.data} />;
+  return <DataDetails value={transform ? transform(read.data) : read.data} />;
 }

@@ -20,6 +20,7 @@ import { AssignmentLive } from "./AssignmentLive";
 import { NotificationsList } from "./NotificationsList";
 import { useActivityObserver } from "./activity-observer";
 import { useActivity } from "./activity";
+import { canAssignDonation, donationDetails, donationHistory } from "./donation-display";
 
 type Row = Record<string, unknown>;
 type Column = [string, string];
@@ -57,6 +58,7 @@ const configs: Record<string, ListConfig> = {
       ["peso_estimado_kg", "Peso estimado (kg)"],
       ["almacen_destino.nombre", "Almacén"],
       ["ventana_recogida_inicio", "Recogida desde"],
+      ["entregada_at", "Fecha de llegada"],
     ],
   },
   "/rutas": {
@@ -145,6 +147,10 @@ const configs: Record<string, ListConfig> = {
     ],
   },
 };
+function DonationArrival({ row }: { row: Row }) {
+  const read = useRead<Row>(row.entregada_at == null && ["ENTREGADA", "RECIBIDA", "RECHAZADA"].includes(String(row.estado)) ? `/donaciones/${encodeURIComponent(String(row.id))}` : null);
+  return <>{read.loading ? "Consultando…" : read.error ? <span title={read.error}>No disponible</span> : textValue(row.entregada_at ?? read.data?.entregada_at)}</>;
+}
 function Records({ config }: { config: ListConfig }) {
   const auth = useSession()!;
   const path = config.endpoint.split("?")[0];
@@ -286,7 +292,7 @@ function Records({ config }: { config: ListConfig }) {
                     <tr key={String(row[config.idField || "id"] ?? index)}>
                       {config.columns.map(([key]) => (
                         <td key={key}>
-                          {key === "estado" ? (
+                          {config.donation && key === "entregada_at" ? <DonationArrival row={row} /> : key === "estado" ? (
                             <Badge>{textValue(at(row, key))}</Badge>
                           ) : (
                             fieldValue(key, at(row, key))
@@ -316,7 +322,7 @@ function Records({ config }: { config: ListConfig }) {
                             onSaved={read.refresh}
                           />
                         )}
-                        {config.donation && (
+                        {config.donation && canAssignDonation(row) && (
                           <a
                             className="table-action"
                             href={`#/asignaciones?id=${encodeURIComponent(String(row.id))}`}
@@ -441,14 +447,8 @@ export function ReadScreen({ path, id }: { path: string; id: string | null }) {
   return (
     <div className="form-stack">
       <Card title="Donación seleccionada">
-        <ReadBody key={id} endpoint={donation} />
+        <ReadBody key={id} endpoint={donation} transform={donationDetails} />
       </Card>
-      <ActionButtons
-        actions={recordActions("/donaciones", { id }).filter(
-          (a) => a.key === "donation-reassign",
-        )}
-        onSaved={() => {}}
-      />
       {path === "/recepcion" && <ReceptionLive id={id} />}
     </div>
   );
@@ -470,6 +470,7 @@ export function DetailBody({
       </button>
       <ReadBody
         endpoint={endpoint}
+        transform={path === "/donaciones" ? donationDetails : undefined}
         read={path === "/rutas" && read.data ? {
           ...read,
           data: Object.fromEntries(
@@ -481,7 +482,7 @@ export function DetailBody({
       {path === "/donaciones" && (
         <>
           <h3>Historial</h3>
-          <ReadBody endpoint={`${endpoint}/historial`} />
+          <ReadBody endpoint={`${endpoint}/historial`} transform={donationHistory} />
         </>
       )}
       {path === "/rutas" && read.data && <RouteExecution route={read.data} refresh={read.refresh} />}
