@@ -12,7 +12,6 @@ import { ActionButtons } from "./ActionForm";
 import { createAction, recordActions } from "./actions";
 import { SettingsLive } from "./SettingsLive";
 import { ReceptionLive } from "./StockForms";
-import { EvidencePanel } from "./EvidencePanel";
 import { AuditLive } from "./AuditLive";
 import { InventoryLive } from "./InventoryLive";
 import { RouteMap } from "./RouteMap";
@@ -20,7 +19,7 @@ import { AssignmentLive } from "./AssignmentLive";
 import { NotificationsList } from "./NotificationsList";
 import { useActivityObserver } from "./activity-observer";
 import { useActivity } from "./activity";
-import { canAssignDonation, donationDetails, donationHistory } from "./donation-display";
+import { canAssignDonation, donationDetails, donationHistory, nonEmptyDetails } from "./donation-display";
 
 type Row = Record<string, unknown>;
 type Column = [string, string];
@@ -455,7 +454,6 @@ export function ReadScreen({ path, id }: { path: string; id: string | null }) {
 }
 export function DetailBody({
   path,
-  row,
   endpoint,
 }: {
   path: string;
@@ -470,7 +468,7 @@ export function DetailBody({
       </button>
       <ReadBody
         endpoint={endpoint}
-        transform={path === "/donaciones" ? donationDetails : undefined}
+        transform={path === "/donaciones" ? donationDetails : path === "/rutas" ? nonEmptyDetails : undefined}
         read={path === "/rutas" && read.data ? {
           ...read,
           data: Object.fromEntries(
@@ -486,12 +484,6 @@ export function DetailBody({
         </>
       )}
       {path === "/rutas" && read.data && <RouteExecution route={read.data} refresh={read.refresh} />}
-      {path === "/donaciones" && (
-        <EvidencePanel
-          parent="donacion_id"
-          id={String(row.id)}
-        />
-      )}
     </>
   );
 }

@@ -1,11 +1,15 @@
 import type { Row } from "./actions";
 
 export function donationDetails(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(donationDetails).filter(hasContent);
+  return nonEmptyDetails(value, ["metadata", "registros", "historial"]);
+}
+
+export function nonEmptyDetails(value: unknown, excluded: string[] = []): unknown {
+  if (Array.isArray(value)) return value.map((item) => nonEmptyDetails(item, excluded)).filter(hasContent);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(Object.entries(value as Row)
-    .filter(([key]) => !["metadata", "registros", "historial"].includes(key))
-    .map(([key, item]) => [key, donationDetails(item)])
+    .filter(([key]) => !excluded.includes(key))
+    .map(([key, item]) => [key, nonEmptyDetails(item, excluded)])
     .filter(([, item]) => hasContent(item)));
 }
 
@@ -27,5 +31,5 @@ export function donationHistory(value: unknown): unknown {
 }
 
 export function canAssignDonation(row: Row): boolean {
-  return ["PUBLICADA", "EXPIRADA", "ASIGNADA"].includes(String(row.estado));
+  return ["PUBLICADA", "ASIGNADA"].includes(String(row.estado));
 }
