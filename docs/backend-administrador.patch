@@ -1,0 +1,464 @@
+diff --git a/src/modulos/admin/admin.controller.ts b/src/modulos/admin/admin.controller.ts
+index cb83712..9ce0d9d 100644
+--- a/src/modulos/admin/admin.controller.ts
++++ b/src/modulos/admin/admin.controller.ts
+@@ -26,6 +26,7 @@ import {
+   CambiarEstadoUsuarioDto,
+   FiltroCatalogosDto,
+   ListarUsuariosDto,
++  ListarTiposAlimentoDto,
+   ListarVerificacionesDto,
+   RechazarVerificacionDto,
+   SuspenderDto,
+@@ -170,6 +171,11 @@ export class AdminController {
+     return this.catalogos.guardarBanco(dto, admin.id, peticion);
+   }
+ 
++  @Get('tipos-alimento')
++  listarTiposAlimento(@Query() filtro: ListarTiposAlimentoDto) {
++    return this.catalogos.listarTiposAlimento(filtro);
++  }
++
+   @Post('tipos-alimento')
+   crearTipoAlimento(
+     @UsuarioActual() admin: UsuarioAutenticado,
+diff --git a/src/modulos/admin/admin.dto.ts b/src/modulos/admin/admin.dto.ts
+index 55d6e1c..9696ef3 100644
+--- a/src/modulos/admin/admin.dto.ts
++++ b/src/modulos/admin/admin.dto.ts
+@@ -186,6 +186,12 @@ export class TipoAlimentoDto {
+   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) vida_util_dias?: number;
+ }
+ 
++export class ListarTiposAlimentoDto extends PaginacionDto {
++  @ApiPropertyOptional() @IsOptional() @Transform(recortar) @IsString() @MaxLength(100) q?: string;
++  @ApiPropertyOptional({ enum: ['ACTIVO', 'INACTIVO'] }) @IsOptional() @IsIn(['ACTIVO', 'INACTIVO']) estado?: 'ACTIVO' | 'INACTIVO';
++  @ApiPropertyOptional({ enum: tipo_almacenamiento }) @IsOptional() @IsIn(Object.values(tipo_almacenamiento)) tipo_almacenamiento?: tipo_almacenamiento;
++}
++
+ export class ActualizarTipoAlimentoDto {
+   @ApiPropertyOptional()
+   @IsOptional()
+diff --git a/src/modulos/admin/admin.module.ts b/src/modulos/admin/admin.module.ts
+index 21c8deb..2933161 100644
+--- a/src/modulos/admin/admin.module.ts
++++ b/src/modulos/admin/admin.module.ts
+@@ -5,11 +5,15 @@ import { AdminController, CatalogosController } from './admin.controller';
+ import { CatalogosService } from './catalogos.service';
+ import { UsuariosAdminService } from './usuarios-admin.service';
+ import { VerificacionesService } from './verificaciones.service';
++import { AuditoriaController } from './auditoria.controller';
++import { AuditoriaService } from './auditoria.service';
++import { APP_INTERCEPTOR } from '@nestjs/core';
++import { AuditoriaOperacionInterceptor } from './auditoria-operacion.interceptor';
+ 
+ @Module({
+   imports: [EvidenciasModule, NotificacionesModule],
+-  controllers: [AdminController, CatalogosController],
+-  providers: [UsuariosAdminService, VerificacionesService, CatalogosService],
++  controllers: [AdminController, CatalogosController, AuditoriaController],
++  providers: [UsuariosAdminService, VerificacionesService, CatalogosService, AuditoriaService, { provide: APP_INTERCEPTOR, useClass: AuditoriaOperacionInterceptor }],
+   exports: [UsuariosAdminService],
+ })
+ export class AdminModule {}
+diff --git a/src/modulos/admin/alimentos-admin.spec.ts b/src/modulos/admin/alimentos-admin.spec.ts
+new file mode 100644
+index 0000000..10cbaa5
+--- /dev/null
++++ b/src/modulos/admin/alimentos-admin.spec.ts
+@@ -0,0 +1,56 @@
++import 'reflect-metadata';
++import { plainToInstance } from 'class-transformer';
++import { validate } from 'class-validator';
++import { Reflector } from '@nestjs/core';
++import type { ExecutionContext } from '@nestjs/common';
++import { RolesGuard } from '../../comun/auth/roles.guard';
++import type { PrismaService } from '../../comun/prisma/prisma.service';
++import type { TrazabilidadService } from '../../comun/trazabilidad/trazabilidad.service';
++import { AdminController } from './admin.controller';
++import { CatalogosService } from './catalogos.service';
++import { ListarTiposAlimentoDto } from './admin.dto';
++
++function setup() {
++  const rows = [{ id: 1, nombre: 'Mamoncillo', codigo: 'MAMONCILLO', activo: false }];
++  const foods = { findMany: jest.fn().mockResolvedValue(rows), count: jest.fn().mockResolvedValue(1), findUnique: jest.fn().mockResolvedValue(rows[0]), update: jest.fn().mockResolvedValue({ ...rows[0], activo: true }) };
++  const audit = jest.fn().mockResolvedValue(undefined);
++  const prisma = { tipo_alimento: foods, $transaction: (queries: Promise<unknown>[]) => Promise.all(queries), transaccion: (callback: (tx: unknown) => unknown) => callback({ tipo_alimento: foods }) };
++  const service = new CatalogosService(prisma as unknown as PrismaService, { auditar: audit } as unknown as TrazabilidadService);
++  return { service, foods, audit };
++}
++describe('administración de alimentos', () => {
++  it('incluye inactivos en el listado administrativo y pagina en el servidor', async () => {
++    const { service, foods } = setup();
++    const result = await service.listarTiposAlimento(plainToInstance(ListarTiposAlimentoDto, { limite: 10, desplazamiento: 20 }));
++    expect(result.datos[0].activo).toBe(false);
++    expect(foods.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {}, take: 10, skip: 20, select: expect.objectContaining({ activo: true }) }));
++    expect(result.total).toBe(1);
++  });
++  it('combina búsqueda, estado y régimen antes de paginar', async () => {
++    const { service, foods } = setup();
++    await service.listarTiposAlimento(plainToInstance(ListarTiposAlimentoDto, { q: '  mamon  ', estado: 'INACTIVO', tipo_almacenamiento: 'SECO' }));
++    const query = foods.findMany.mock.calls[0][0];
++    expect(query.where).toEqual({ activo: false, tipo_almacenamiento: 'SECO', OR: [{ nombre: { contains: 'mamon', mode: 'insensitive' } }, { codigo: { contains: 'mamon', mode: 'insensitive' } }] });
++    expect(foods.count).toHaveBeenCalledWith({ where: query.where });
++  });
++  it('reactiva el registro existente y deja auditoría', async () => {
++    const { service, foods, audit } = setup();
++    const result = await service.actualizarTipoAlimento(1, { activo: true }, 'admin');
++    expect(result.id).toBe(1);
++    expect(foods.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { activo: true } });
++    expect(audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ anteriores: expect.objectContaining({ activo: false }), nuevos: { activo: true } }));
++  });
++  it('el catálogo de formularios sigue excluyendo alimentos inactivos', async () => {
++    const { service, foods } = setup();
++    await service.consultar({ incluir: ['tipos_alimento'] });
++    expect(foods.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { activo: true } }));
++  });
++  it('valida filtros y límites', async () => {
++    expect(await validate(plainToInstance(ListarTiposAlimentoDto, { limite: 20, estado: 'INACTIVO' }))).toHaveLength(0);
++    expect((await validate(plainToInstance(ListarTiposAlimentoDto, { limite: 500, estado: 'OTRO', tipo_almacenamiento: 'OTRO' }))).length).toBeGreaterThan(0);
++  });
++  it.each(['ASESOR_BANCO', 'DONANTE', 'VOLUNTARIO'])('no expone la administración de inactivos al rol %s', (role) => {
++    const context = { getClass: () => AdminController, getHandler: () => () => undefined, switchToHttp: () => ({ getRequest: () => ({ usuario: { roles: [role] } }) }) } as unknown as ExecutionContext;
++    expect(() => new RolesGuard(new Reflector()).canActivate(context)).toThrow();
++  });
++});
+diff --git a/src/modulos/admin/auditoria-operacion.interceptor.ts b/src/modulos/admin/auditoria-operacion.interceptor.ts
+new file mode 100644
+index 0000000..b333a08
+--- /dev/null
++++ b/src/modulos/admin/auditoria-operacion.interceptor.ts
+@@ -0,0 +1,47 @@
++import { Injectable, Logger, type CallHandler, type ExecutionContext, type NestInterceptor } from '@nestjs/common';
++import { mergeMap, type Observable } from 'rxjs';
++import type { PeticionAutenticada } from '../../comun/auth/decoradores';
++import { PrismaService } from '../../comun/prisma/prisma.service';
++import { Prisma } from '../../generated/prisma/client';
++
++const campos = ['nombre', 'direccion', 'ciudad', 'titulo', 'estado', 'tipo', 'capacidad_kg', 'activo', 'valor', 'tiene_flota_propia', 'cantidad', 'motivo', 'observacion', 'observaciones'];
++export function datosOperacion(body: unknown): Prisma.InputJsonObject {
++  if (!body || typeof body !== 'object' || Array.isArray(body)) return {};
++  return Object.fromEntries(Object.entries(body).filter(([key, value]) => campos.includes(key) && ['string', 'number', 'boolean'].includes(typeof value)));
++}
++
++/** Completa la bitácora de negocio con las solicitudes mutantes de todos los roles. */
++@Injectable()
++export class AuditoriaOperacionInterceptor implements NestInterceptor {
++  private readonly logger = new Logger(AuditoriaOperacionInterceptor.name);
++  constructor(private readonly prisma: PrismaService) {}
++
++  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
++    const request = context.switchToHttp().getRequest<PeticionAutenticada>();
++    const user = request.usuario;
++    if (!user || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return next.handle();
++    const parts = request.path.split('/').filter((part) => part && !/^v\d+$/.test(part));
++    if (['auth', 'notificaciones', 'dispositivos'].some((part) => parts.includes(part))) return next.handle();
++    // Estos servicios ya auditan dentro de su transacción; no duplicar sus entradas.
++    if (parts[0] === 'almacenes' || (parts[0] === 'admin' && ['usuarios', 'verificaciones', 'parametros', 'banco', 'tipos-alimento'].includes(parts[1] ?? ''))) return next.handle();
++    const entity = parts[0] === 'admin' ? parts[1] : parts[0];
++    const operation = parts.at(-1) ?? '';
++    const verbs: Record<string, string> = { aprobar: 'APROBAR', rechazar: 'RECHAZAR', cancelar: 'CANCELAR', iniciar: 'INICIAR', finalizar: 'FINALIZAR', confirmar: 'CONFIRMAR', completar: 'COMPLETAR', llegada: 'REGISTRAR_LLEGADA', atender: 'ATENDER', resolver: 'RESOLVER', suspender: 'SUSPENDER', reactivar: 'REACTIVAR', reasignar: 'REASIGNAR' };
++    const action = verbs[operation] ?? ({ POST: 'CREAR', PUT: 'ACTUALIZAR', PATCH: 'ACTUALIZAR', DELETE: 'ELIMINAR' }[request.method] ?? 'ACTUALIZAR');
++    return next.handle().pipe(mergeMap(async (result: unknown) => {
++      const response = result && typeof result === 'object' ? result as Record<string, unknown> : {};
++      const reference = response.id ?? request.params.id;
++      try {
++        await this.prisma.auditoria.create({ data: {
++          usuario_id: user.id, accion: action, entidad: (entity ?? 'operacion').slice(0, 60),
++          entidad_id: typeof reference === 'string' || typeof reference === 'number' ? String(reference) : null,
++          valores_nuevos: datosOperacion(request.body),
++        } });
++      } catch {
++        // La operación puede haberse confirmado: no devolver un error que invite a duplicarla.
++        this.logger.error(`No se pudo registrar auditoría de ${request.method} ${entity ?? 'operacion'}`);
++      }
++      return result;
++    }));
++  }
++}
+diff --git a/src/modulos/admin/auditoria.controller.ts b/src/modulos/admin/auditoria.controller.ts
+new file mode 100644
+index 0000000..f38d240
+--- /dev/null
++++ b/src/modulos/admin/auditoria.controller.ts
+@@ -0,0 +1,25 @@
++import { Controller, Get, Query } from '@nestjs/common';
++import { ApiBearerAuth, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
++import { IsISO8601, IsOptional } from 'class-validator';
++import { Roles } from '../../comun/auth/decoradores';
++import { PaginacionDto } from '../../comun/validacion';
++import { AuditoriaService } from './auditoria.service';
++
++export class ListarAuditoriaDto extends PaginacionDto {
++  @ApiPropertyOptional() @IsOptional() @IsISO8601() desde?: string;
++  /** Límite exclusivo: el cliente envía el inicio del día siguiente. */
++  @ApiPropertyOptional() @IsOptional() @IsISO8601() hasta?: string;
++}
++
++@ApiTags('administración')
++@ApiBearerAuth()
++@Controller('admin/auditoria')
++@Roles('ADMIN')
++export class AuditoriaController {
++  constructor(private readonly auditoria: AuditoriaService) {}
++
++  @Get()
++  listar(@Query() filtro: ListarAuditoriaDto) {
++    return this.auditoria.listar(filtro);
++  }
++}
+diff --git a/src/modulos/admin/auditoria.service.ts b/src/modulos/admin/auditoria.service.ts
+new file mode 100644
+index 0000000..df0f1a5
+--- /dev/null
++++ b/src/modulos/admin/auditoria.service.ts
+@@ -0,0 +1,100 @@
++import { BadRequestException, Injectable } from '@nestjs/common';
++import { PrismaService } from '../../comun/prisma/prisma.service';
++import { Prisma } from '../../generated/prisma/client';
++import type { ListarAuditoriaDto } from './auditoria.controller';
++
++interface Movimiento {
++  id: string;
++  fecha: Date;
++  actor: string;
++  roles: string[];
++  modulo: string;
++  accion: string;
++  entidad: string;
++  referencia: string | null;
++  detalles: Record<string, string | number | boolean | null>;
++}
++
++const nombres: Record<string, string> = {
++  usuario: 'Usuarios', verificacion_identidad: 'Verificaciones', voluntario: 'Voluntarios',
++  almacen: 'Almacenes', banco_alimentos: 'Banco de alimentos', parametro_sistema: 'Configuración',
++  tipo_alimento: 'Alimentos', DONACION: 'Donaciones', ASIGNACION: 'Asignaciones', RUTA: 'Rutas',
++  PARADA: 'Paradas', INCIDENCIA: 'Incidencias', LOTE: 'Inventario', movimiento_inventario: 'Inventario',
++  usuarios: 'Usuarios', verificaciones: 'Verificaciones', donaciones: 'Donaciones', rutas: 'Rutas', paradas: 'Paradas',
++  recepciones: 'Recepciones', inventario: 'Inventario', alertas: 'Alertas de inventario', incidencias: 'Incidencias',
++  distribuciones: 'Distribuciones', almacenes: 'Almacenes', banco: 'Banco de alimentos', parametros: 'Configuración',
++  me: 'Perfil', evidencias: 'Evidencias', asignaciones: 'Asignaciones',
++};
++const verbos: Record<string, string> = {
++  CREAR: 'Crear', ACTUALIZAR: 'Actualizar', APROBAR: 'Aprobar', RECHAZAR: 'Rechazar',
++  CAMBIAR_ESTADO: 'Cambiar estado', SUSPENDER: 'Suspender', REACTIVAR: 'Reactivar', SOLICITAR: 'Solicitar',
++  ENTRADA: 'Registrar entrada', SALIDA: 'Registrar salida', DEVOLUCION: 'Registrar devolución',
++  AJUSTE: 'Ajustar inventario', MERMA: 'Registrar merma', VENCIMIENTO: 'Registrar vencimiento',
++};
++const legible = (value: string) => value.toLocaleLowerCase('es').replaceAll('_', ' ');
++
++export function presentarMovimiento(row: Movimiento) {
++  const modulo = nombres[row.modulo] ?? legible(row.modulo);
++  const accion = verbos[row.accion] ?? legible(row.accion).replace(/^./, (letter) => letter.toUpperCase());
++  const detalles = Object.fromEntries(Object.entries(row.detalles).filter(([, value]) => value != null).map(([key, value]) => [key, String(value)]));
++  const referencia = row.referencia ? ` (${row.referencia})` : '';
++  let descripcion = `${accion}: ${modulo}${referencia}.`;
++  if (detalles.estado_nuevo) descripcion += ` Estado: ${detalles.estado_anterior ? `${legible(detalles.estado_anterior)} → ` : ''}${legible(detalles.estado_nuevo)}.`;
++  if (detalles.cantidad) descripcion += ` Movimiento: ${detalles.cantidad} unidades; saldo: ${detalles.saldo_cantidad}.`;
++  if (detalles.campos) descripcion += ` Campos modificados: ${detalles.campos}.`;
++  if (detalles.motivo) descripcion += ` Motivo: ${detalles.motivo}.`;
++  return { id: row.id, fecha: row.fecha.toISOString(), actor: row.actor, roles: row.roles, modulo, accion, entidad: row.entidad, metodo: 'REGISTRO', descripcion, detalles };
++}
++
++@Injectable()
++export class AuditoriaService {
++  constructor(private readonly prisma: PrismaService) {}
++
++  async listar(filtro: ListarAuditoriaDto) {
++    const desde = filtro.desde ? new Date(filtro.desde) : null;
++    const hasta = filtro.hasta ? new Date(filtro.hasta) : null;
++    if (desde && hasta && desde >= hasta) throw new BadRequestException('El inicio del periodo debe ser anterior al final.');
++    // Solo campos operativos permitidos. Nunca devolver contraseñas, tokens,
++    // documentos, IP, user-agent o el JSON completo de valores anteriores/nuevos.
++    const eventos = Prisma.sql`
++      WITH eventos AS (
++        SELECT 'auditoria:' || a.id::text AS id, a.created_at AS fecha, a.usuario_id,
++               a.entidad AS modulo, a.accion, coalesce(a.entidad_id, a.entidad) AS entidad,
++               coalesce(a.valores_nuevos->>'nombre', a.valores_nuevos->>'codigo', a.entidad_id) AS referencia,
++               jsonb_build_object('campos', (
++                 SELECT string_agg(k, ', ' ORDER BY k)
++                 FROM unnest(ARRAY['nombre','direccion','ciudad','estado','tipo','capacidad_kg','activo','valor','valores','tiene_flota_propia','PESO_PROXIMIDAD','PESO_URGENCIA','PESO_CONFIABILIDAD','PESO_HOLGURA','MAX_PARADAS_POR_RUTA']) AS campos(k)
++                 WHERE jsonb_typeof(a.valores_nuevos) = 'object' AND a.valores_nuevos ? k
++                   AND a.valores_nuevos->k IS DISTINCT FROM a.valores_anteriores->k
++               )) AS detalles
++          FROM auditoria a
++        UNION ALL
++        SELECT 'historial:' || h.id::text, h.created_at, h.usuario_id, h.ambito::text, 'CAMBIAR_ESTADO',
++               coalesce(h.donacion_id, h.asignacion_id, h.ruta_id, h.parada_id, h.incidencia_id, h.lote_id)::text,
++               coalesce(d.codigo, r.codigo, l.codigo_lote, h.donacion_id::text, h.ruta_id::text, h.lote_id::text),
++               jsonb_build_object('estado_anterior', h.estado_anterior, 'estado_nuevo', h.estado_nuevo, 'motivo', h.motivo)
++          FROM historial_estado h
++          LEFT JOIN donacion d ON d.id = h.donacion_id
++          LEFT JOIN ruta r ON r.id = h.ruta_id
++          LEFT JOIN lote_inventario l ON l.id = h.lote_id
++        UNION ALL
++        SELECT 'inventario:' || m.id::text, m.created_at, m.usuario_id, 'movimiento_inventario', m.tipo::text,
++               m.lote_id::text, l.codigo_lote,
++               jsonb_build_object('cantidad', m.cantidad::text, 'saldo_cantidad', m.saldo_cantidad::text, 'peso_kg', m.peso_kg::text, 'motivo', m.motivo)
++          FROM movimiento_inventario m JOIN lote_inventario l ON l.id = m.lote_id
++      ), filtrados AS (
++        SELECT * FROM eventos WHERE (${desde}::timestamptz IS NULL OR fecha >= ${desde})
++          AND (${hasta}::timestamptz IS NULL OR fecha < ${hasta})
++      )`;
++    const [rows, counts] = await this.prisma.$transaction([
++      this.prisma.$queryRaw<Movimiento[]>(Prisma.sql`${eventos}
++        SELECT e.*, coalesce(u.email, nullif(trim(concat_ws(' ', u.nombres, u.apellidos)), ''), CASE WHEN e.usuario_id IS NULL THEN 'Sistema' ELSE 'Cuenta eliminada' END) AS actor,
++               ARRAY(SELECT r.codigo FROM usuario_rol ur JOIN rol r ON r.id = ur.rol_id
++                     WHERE ur.usuario_id = e.usuario_id AND ur.activo ORDER BY r.codigo) AS roles
++          FROM filtrados e LEFT JOIN usuario u ON u.id = e.usuario_id
++         ORDER BY e.fecha DESC, e.id DESC LIMIT ${filtro.limite} OFFSET ${filtro.desplazamiento}`),
++      this.prisma.$queryRaw<{ total: number }[]>(Prisma.sql`${eventos} SELECT count(*)::int AS total FROM filtrados`),
++    ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
++    return { datos: rows.map(presentarMovimiento), total: counts[0]?.total ?? 0, limite: filtro.limite, desplazamiento: filtro.desplazamiento };
++  }
++}
+diff --git a/src/modulos/admin/auditoria.spec.ts b/src/modulos/admin/auditoria.spec.ts
+new file mode 100644
+index 0000000..712aeb5
+--- /dev/null
++++ b/src/modulos/admin/auditoria.spec.ts
+@@ -0,0 +1,62 @@
++import 'reflect-metadata';
++import { of, lastValueFrom } from 'rxjs';
++import { Reflector } from '@nestjs/core';
++import type { ExecutionContext } from '@nestjs/common';
++import { plainToInstance } from 'class-transformer';
++import { validate } from 'class-validator';
++import { RolesGuard } from '../../comun/auth/roles.guard';
++import type { PrismaService } from '../../comun/prisma/prisma.service';
++import { AuditoriaController, ListarAuditoriaDto } from './auditoria.controller';
++import { AuditoriaService, presentarMovimiento } from './auditoria.service';
++import { AuditoriaOperacionInterceptor, datosOperacion } from './auditoria-operacion.interceptor';
++
++function context(role: string, method = 'GET', path = '/v1/admin/auditoria') {
++  return {
++    getClass: () => AuditoriaController,
++    getHandler: () => () => undefined,
++    switchToHttp: () => ({ getRequest: () => ({ usuario: { id: 'actor', roles: [role] }, method, path, params: {}, body: { estado: 'ACEPTADA', password: 'secret', token: 'private', nested: { password: 'hidden' } } }) }),
++  } as unknown as ExecutionContext;
++}
++describe('auditoría global', () => {
++  it.each(['ASESOR_BANCO', 'DONANTE', 'VOLUNTARIO'])('deniega el reporte al rol %s', (role) => {
++    expect(() => new RolesGuard(new Reflector()).canActivate(context(role))).toThrow();
++  });
++  it('permite al administrador consultar movimientos de cualquier rol', () => {
++    expect(new RolesGuard(new Reflector()).canActivate(context('ADMIN'))).toBe(true);
++  });
++  it('valida paginación y fechas', async () => {
++    expect(await validate(plainToInstance(ListarAuditoriaDto, { limite: 100, desplazamiento: 0, desde: '2026-10-30T05:00:00Z' }))).toHaveLength(0);
++    expect((await validate(plainToInstance(ListarAuditoriaDto, { limite: 101, desde: 'invalid' }))).length).toBeGreaterThan(0);
++  });
++  it('describe un movimiento con cantidad, saldo y motivo', () => {
++    const entry = presentarMovimiento({ id: 'inventario:1', fecha: new Date('2026-10-30T10:00:00Z'), actor: 'asesor@example.test', roles: ['ASESOR_BANCO'], modulo: 'movimiento_inventario', accion: 'MERMA', entidad: 'lote', referencia: 'L-001', detalles: { cantidad: '-3', saldo_cantidad: '7', motivo: 'Producto dañado' } });
++    expect(entry.accion).toBe('Registrar merma');
++    expect(entry.descripcion).toContain('L-001');
++    expect(entry.descripcion).toContain('saldo: 7');
++    expect(entry.descripcion).toContain('Producto dañado');
++  });
++  it('mantiene distintos actores y roles sin filtrar por la sesión que consulta', async () => {
++    const rows = ['ASESOR_BANCO', 'DONANTE', 'VOLUNTARIO', 'ADMIN'].map((role, index) => ({ id: `historial:${index}`, fecha: new Date(), actor: `${role}@example.test`, roles: [role], modulo: 'DONACION', accion: 'CAMBIAR_ESTADO', entidad: 'donacion', referencia: 'DON-1', detalles: { estado_anterior: 'ENTREGADA', estado_nuevo: 'RECIBIDA' } }));
++    const query = jest.fn().mockResolvedValueOnce(rows).mockResolvedValueOnce([{ total: 4 }]);
++    const transaction = jest.fn((queries: Promise<unknown>[]) => Promise.all(queries));
++    const service = new AuditoriaService({ $queryRaw: query, $transaction: transaction } as unknown as PrismaService);
++    const result = await service.listar(plainToInstance(ListarAuditoriaDto, {}));
++    expect(result.total).toBe(4);
++    expect(result.datos.map((row) => row.roles[0])).toEqual(['ASESOR_BANCO', 'DONANTE', 'VOLUNTARIO', 'ADMIN']);
++    expect(query.mock.calls[0][0].sql).toContain('UNION ALL');
++    expect(query.mock.calls[0][0].sql).not.toContain('SELECT a.valores_nuevos');
++  });
++  it('rechaza un periodo invertido antes de consultar la base', async () => {
++    const service = new AuditoriaService({} as PrismaService);
++    await expect(service.listar(plainToInstance(ListarAuditoriaDto, { desde: '2026-11-01', hasta: '2026-10-01' }))).rejects.toThrow();
++  });
++  it('no guarda contraseñas, tokens ni objetos arbitrarios', () => {
++    expect(datosOperacion({ nombre: 'Sede', password: 'secret', token: 'private', datos: { password: 'hidden' }, estado: 'ACTIVO' })).toEqual({ nombre: 'Sede', estado: 'ACTIVO' });
++  });
++  it.each(['ASESOR_BANCO', 'DONANTE', 'VOLUNTARIO', 'ADMIN'])('registra las operaciones exitosas de %s', async (role) => {
++    const create = jest.fn().mockResolvedValue({});
++    const interceptor = new AuditoriaOperacionInterceptor({ auditoria: { create } } as unknown as PrismaService);
++    await lastValueFrom(interceptor.intercept(context(role, 'POST', '/v1/recepciones'), { handle: () => of({ id: 'recepcion' }) }));
++    expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ usuario_id: 'actor', entidad: 'recepciones', entidad_id: 'recepcion', valores_nuevos: { estado: 'ACEPTADA' } }) });
++  });
++});
+diff --git a/src/modulos/admin/catalogos.service.ts b/src/modulos/admin/catalogos.service.ts
+index 624941e..6bce33c 100644
+--- a/src/modulos/admin/catalogos.service.ts
++++ b/src/modulos/admin/catalogos.service.ts
+@@ -15,6 +15,7 @@ import {
+   type Catalogo,
+   CATALOGOS,
+   type FiltroCatalogosDto,
++  type ListarTiposAlimentoDto,
+   type TipoAlimentoDto,
+ } from './admin.dto';
+ 
+@@ -135,6 +136,22 @@ export class CatalogosService {
+     return Object.fromEntries(pedidos.map((c, i) => [c, resultados[i]]));
+   }
+ 
++  async listarTiposAlimento(filtro: ListarTiposAlimentoDto) {
++    const where = {
++      ...(filtro.estado ? { activo: filtro.estado === 'ACTIVO' } : {}),
++      ...(filtro.tipo_almacenamiento ? { tipo_almacenamiento: filtro.tipo_almacenamiento } : {}),
++      ...(filtro.q ? { OR: [{ nombre: { contains: filtro.q, mode: 'insensitive' as const } }, { codigo: { contains: filtro.q, mode: 'insensitive' as const } }] } : {}),
++    };
++    const [datos, total] = await this.prisma.$transaction([
++      this.prisma.tipo_alimento.findMany({ where, orderBy: [{ nombre: 'asc' }, { id: 'asc' }], take: filtro.limite, skip: filtro.desplazamiento, select: {
++        id: true, codigo: true, nombre: true, categoria_alimento_id: true, unidad_medida_id: true,
++        requiere_refrigeracion: true, tipo_almacenamiento: true, perecedero: true, vida_util_dias: true, activo: true,
++      } }),
++      this.prisma.tipo_alimento.count({ where }),
++    ]);
++    return { datos, total, limite: filtro.limite, desplazamiento: filtro.desplazamiento };
++  }
++
+   async crearTipoAlimento(
+     dto: TipoAlimentoDto,
+     usuarioId: string,
+diff --git a/src/modulos/parametros/parametros-conjunto.spec.ts b/src/modulos/parametros/parametros-conjunto.spec.ts
+index 031a88c..22f5aa1 100644
+--- a/src/modulos/parametros/parametros-conjunto.spec.ts
++++ b/src/modulos/parametros/parametros-conjunto.spec.ts
+@@ -63,7 +63,7 @@ describe('configuración de asignación atómica', () => {
+     ).rejects.toMatchObject({ tipo: 'pesos-no-suman-uno' });
+     expect(tx.parametro_sistema.update).not.toHaveBeenCalled();
+   });
+-  it.each(['0', '6', '2.5'])(
++  it.each(['0', '1', '6', '2.5'])(
+     'rechaza un máximo de paradas %s',
+     async (valor) => {
+       const { service, tx } = fixture();
+diff --git a/src/modulos/parametros/parametros.service.ts b/src/modulos/parametros/parametros.service.ts
+index 51854e0..76294d9 100644
+--- a/src/modulos/parametros/parametros.service.ts
++++ b/src/modulos/parametros/parametros.service.ts
+@@ -17,7 +17,7 @@ export const CLAVES_EDITABLES = [
+   ...CLAVES_PESO,
+   'MAX_PARADAS_POR_RUTA',
+ ] as const;
+-const PARADAS_MIN = 1;
++const PARADAS_MIN = 2;
+ const PARADAS_MAX = 5;
+ 
+ interface Parametro {
+@@ -162,7 +162,7 @@ export class ParametrosService {
+       ) {
+         throw noProcesable(
+           'paradas-fuera-de-rango',
+-          'El máximo de paradas debe estar entre 1 y 5',
++          'El máximo de paradas debe estar entre 2 y 5',
+         );
+       }
+       const nuevos = [];
+diff --git a/supabase/migrations/20261030000000_minimo_dos_paradas.sql b/supabase/migrations/20261030000000_minimo_dos_paradas.sql
+new file mode 100644
+index 0000000..319a1ac
+--- /dev/null
++++ b/supabase/migrations/20261030000000_minimo_dos_paradas.sql
+@@ -0,0 +1,5 @@
++-- Conserva los límites válidos existentes y corrige el valor antiguo de una parada.
++UPDATE parametro_sistema
++   SET valor = '2'
++ WHERE clave = 'MAX_PARADAS_POR_RUTA'
++   AND banco_id IS NULL AND valor::numeric < 2;

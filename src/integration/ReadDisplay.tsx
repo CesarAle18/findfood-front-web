@@ -2,6 +2,8 @@ import { useRead } from "./read";
 import type { Row } from "./actions";
 import { textValue, fieldLabel, fieldValue, readingUrl } from "./read-format";
 import { EvidenceImage } from "./EvidenceImage";
+import { useSession } from "./session-context";
+import { advisorDetails } from "./advisor-display";
 export function DataDetails({
   value,
   depth = 0,
@@ -11,6 +13,8 @@ export function DataDetails({
   depth?: number;
   collection?: string;
 }) {
+  const profile = useSession()?.profile;
+  if (profile?.roles.includes("ASESOR_BANCO") && !profile.roles.includes("ADMIN")) value = advisorDetails(value, collection);
   if (value == null) return <p>No hay información disponible.</p>;
   if (Array.isArray(value))
     return value.length ? (
@@ -25,7 +29,7 @@ export function DataDetails({
           return (
             <section className="detail-record" aria-label={title} key={index}>
               <h4>{title}</h4>
-              <DataDetails value={item} depth={depth + 1} />
+              <DataDetails value={item} depth={depth + 1} collection={collection} />
             </section>
           );
         })}

@@ -11,7 +11,7 @@ export function RouteExecution({ route, refresh }: { route: Row; refresh: () => 
   const active = route.estado === "EN_CURSO";
   const routeActions: Action[] = [];
   if (planned && advisor && fleet) routeActions.push({ key: "route-start", label: "Iniciar ruta", roles: ["ASESOR_BANCO"], endpoint: `/rutas/${route.id}/iniciar`, method: "POST", fields: [], body: () => ({}) });
-  if (planned) routeActions.push({ key: "route-cancel", label: "Cancelar ruta", roles: ["ADMIN", "ASESOR_BANCO"], endpoint: `/rutas/${route.id}/cancelar`, method: "POST", fields: [], description: "Se cancelará la ruta planificada. La API valida su estado y libera las asignaciones correspondientes.", body: () => ({}) });
+  if (planned) routeActions.push({ key: "route-cancel", label: "Cancelar ruta", roles: ["ADMIN", "ASESOR_BANCO"], endpoint: `/rutas/${route.id}/cancelar`, method: "POST", fields: [], description: "Se cancelará la ruta planificada y se liberarán sus asignaciones.", body: () => ({}) });
   const stops = Array.isArray(route.paradas) ? route.paradas as Row[] : [];
   return <div className="form-stack"><ActionButtons actions={routeActions} onSaved={refresh} />{stops.map((stop) => {
     const open = active && ["PENDIENTE", "EN_SITIO"].includes(String(stop.estado));

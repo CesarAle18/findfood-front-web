@@ -14,6 +14,7 @@ export function EvidencePanel({
   const read = useRead<Row[]>(
     `/evidencias?${parent}=${encodeURIComponent(id)}`,
   );
+  if (!read.loading && !read.error && Array.isArray(read.data) && !read.data.length) return null;
   return (
     <section
       className="form-stack evidence-panel"

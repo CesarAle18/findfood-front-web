@@ -12,7 +12,7 @@ export function AuthBoundary({ children }: { children: ReactNode }) {
     route.pathname,
   );
   const restricted = Boolean(auth.profile && !auth.profile.roles.includes("ADMIN") &&
-    ["/usuarios", "/voluntarios", "/pendientes", "/configuracion"].some((path) => route.pathname === path || route.pathname.startsWith(`${path}/`)));
+    ["/usuarios", "/voluntarios", "/pendientes", "/configuracion", "/reportes"].some((path) => route.pathname === path || route.pathname.startsWith(`${path}/`)));
   const target = auth.recovery
     ? null
     : restricted ? "/inicio" : auth.profile?.debe_cambiar_password

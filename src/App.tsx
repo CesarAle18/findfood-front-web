@@ -322,7 +322,7 @@ export default function App({
                 ([path]) =>
                   !auth ||
                   auth.profile?.roles.includes("ADMIN") ||
-                  !["/usuarios", "/configuracion"].includes(path),
+                  !["/usuarios", "/configuracion", "/reportes"].includes(path),
               )
               .map(([path, label, icon]) => {
                 const isUsers = path === "/usuarios";

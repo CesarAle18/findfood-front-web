@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, Metrics } from "../components/ui";
 import type { Kpis } from "./contracts";
 import { apiRequest, errorMessage } from "./http";
@@ -86,13 +86,15 @@ export function DashboardLive() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [range, setRange] = useState("");
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
   return <div className="form-stack"><Card><form className="audit-filters dashboard-period" onSubmit={(event) => {
     event.preventDefault();
+    if (from > today || to > today || (from && to && from > to)) return;
     const params = new URLSearchParams();
     if (from) params.set("desde", new Date(`${from}T00:00:00-05:00`).toISOString());
     if (to) params.set("hasta", new Date(Date.parse(`${to}T00:00:00-05:00`) + 86400000).toISOString());
     setRange(params.toString());
-  }}><label>Desde<input type="date" aria-label="Indicadores desde" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></label><label>Hasta<input type="date" aria-label="Indicadores hasta" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label><button className="button" type="submit">Consultar periodo</button><button className="button secondary" type="button" onClick={() => { setFrom(""); setTo(""); setRange(""); }}>Últimos 30 días</button></form></Card><DashboardSummary key={range} range={range} /><Card title="Operación del banco"><div className="card-actions"><a className="button secondary" href="#/alertas">Consultar alertas</a></div></Card></div>;
+  }}><label>Desde<input type="date" aria-label="Indicadores desde" value={from} max={to && to < today ? to : today} onChange={(e) => setFrom(e.target.value)} /></label><label>Hasta<input type="date" aria-label="Indicadores hasta" value={to} max={today} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></label><button className="button" type="submit">Consultar periodo</button><button className="button secondary" type="button" onClick={() => { setFrom(""); setTo(""); setRange(""); }}>Últimos 30 días</button></form></Card><DashboardSummary key={range} range={range} /><Card title="Operación del banco"><div className="card-actions"><a className="button secondary" href="#/alertas">Consultar alertas</a></div></Card></div>;
 }
 function DashboardSummary({ range }: { range: string }) {
   const [data, setData] = useState<Kpis | null>(null);
@@ -165,13 +167,14 @@ function DashboardSummary({ range }: { range: string }) {
         ]}
       />
       <details className="dashboard-extra"><summary>Ver indicadores adicionales</summary>
+      <div className="form-stack dashboard-extra-content">
       <Metrics items={[
         ["Tasa de expiración", data.asignacion.tasa_expiracion == null ? "Sin datos" : `${(data.asignacion.tasa_expiracion * 100).toFixed(1)} %`, "Sobre donaciones publicadas"],
         ["Ofertas por donación", data.asignacion.ofertas_por_donacion == null ? "Sin datos" : data.asignacion.ofertas_por_donacion.toFixed(2), "Promedio del periodo"],
         ["Merma y vencimiento", `${data.inventario.kg_merma.toLocaleString("es-CO")} kg`, "Salidas del periodo"],
       ]} />
       <Card title="Donaciones por estado"><div className="table-scroll"><table aria-label="Donaciones por estado"><thead><tr><th>Estado</th><th>Cantidad</th></tr></thead><tbody>{([ ["Publicadas", "publicadas"], ["Recibidas", "recibidas"], ["Rechazadas", "rechazadas"], ["Expiradas", "expiradas"], ["Canceladas", "canceladas"] ] as const).map(([label, key]) => <tr key={key}><td>{label}</td><td>{data.donaciones[key] ?? "—"}</td></tr>)}</tbody></table></div><p className="muted">Publicadas cuenta las donaciones creadas en el periodo que llegaron a publicarse; los otros estados corresponden a su estado actual para las donaciones creadas en el periodo.</p></Card>
-      </details>
+      </div></details>
       <InventorySummary />
       <Card title="Recepciones por almacén">
         <p>

@@ -117,7 +117,7 @@ Conserva los mensajes de error y revisa Network si una regla impide operar. 401 
 
 ## Reportes e indicadores
 
-Reportes presenta un registro local de acciones exitosas (POST, PUT, PATCH y DELETE), con fecha, cuenta, módulo, acción y entidad, filtros y exportación CSV. Se conserva por cuenta en este navegador, hasta 2.000 registros. No guarda cuerpos de solicitudes, contraseñas, tokens, valores anteriores/nuevos ni IP. No registra consultas GET ni lecturas de notificaciones. No reconstruye actividad anterior a esta implementación ni operaciones realizadas fuera de este navegador. El backend actual no expone un GET de auditoría; una bitácora central de todos los usuarios requiere ese endpoint con permisos y DTO definidos. Los indicadores globales siguen disponibles en Inicio mediante GET /v1/kpis/resumen.
+Reportes consulta `GET /admin/auditoria`, restringido a ADMIN, para mostrar movimientos registrados en el servidor de todos los roles. Incluye filtros por periodo, usuario, rol, módulo y acción, descripciones y exportación CSV. Requiere desplegar los cambios del backend de `Conexion_Front` incluidos en [la guía y parche de administración](cambios-administrador.md). Los datos locales del navegador no se presentan como auditoría global. Los indicadores generales siguen disponibles en Inicio mediante `GET /v1/kpis/resumen`.
 
 ## Ajustes de interfaz del 16 de octubre de 2026
 

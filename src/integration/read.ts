@@ -13,6 +13,11 @@ export function useRead<T>(endpoint: string | null, pollMs = 0, load?: (endpoint
     if (!endpoint) return;
     const controller = new AbortController();
     pending.current = controller;
+    const timeout = window.setTimeout(() => {
+      controller.abort();
+      if (pending.current === controller) pending.current = null;
+      setResult({ endpoint, error: "La consulta tardó demasiado. Intenta nuevamente." });
+    }, 30000);
     (load ? load(endpoint, controller.signal) : apiRequest<T>(endpoint, { signal: controller.signal })).then(
       (data) => {
         if (!controller.signal.aborted) setResult({ endpoint, data });
@@ -22,9 +27,10 @@ export function useRead<T>(endpoint: string | null, pollMs = 0, load?: (endpoint
           setResult({ endpoint, error: errorMessage(error) });
       },
     ).finally(() => {
+      window.clearTimeout(timeout);
       if (pending.current === controller) pending.current = null;
     });
-    return () => controller.abort();
+    return () => { window.clearTimeout(timeout); controller.abort(); };
   }, [endpoint, attempt, load]);
   useEffect(() => {
     const refresh = () => {

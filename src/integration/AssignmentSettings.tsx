@@ -76,8 +76,8 @@ function AssignmentEditor({ initial }: { initial: Parameter[] }) {
     ),
   });
   const [baseline, setBaseline] = useState(initialValues),
-    [weights, setWeights] = useState(() => initialValues().weights),
-    [stops, setStops] = useState(() => initialValues().stops);
+    [weights, setWeights] = useState(() => initialValues().weights.map(Math.round)),
+    [stops, setStops] = useState(() => Math.max(2, initialValues().stops));
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [saved, setSaved] = useState(false);
@@ -87,10 +87,10 @@ function AssignmentEditor({ initial }: { initial: Parameter[] }) {
   const valid =
     total === 100 &&
     weights.every(
-      (value) => Number.isFinite(value) && value >= 0 && value <= 100,
+      (value) => Number.isInteger(value) && value >= 0 && value <= 100,
     ) &&
     Number.isInteger(stops) &&
-    stops >= 1 &&
+    stops >= 2 &&
     stops <= 5;
   const dirty =
     stops !== baseline.stops ||
@@ -152,7 +152,7 @@ function AssignmentEditor({ initial }: { initial: Parameter[] }) {
       <div className="two-column assignment-layout">
         <Card title="Criterios del motor de asignación">
           <p className="muted">
-            Configura la importancia relativa de cada criterio entre 0 y 1.
+            Configura la importancia de cada criterio con porcentajes enteros.
             <br />
             En la interfaz se muestran como porcentajes y deben sumar 100%.
           </p>
@@ -166,7 +166,7 @@ function AssignmentEditor({ initial }: { initial: Parameter[] }) {
                   type="range"
                   min="0"
                   max="100"
-                  step="0.01"
+                  step="1"
                   disabled={busy}
                   value={Number.isFinite(weights[index]) ? weights[index] : 0}
                   onChange={(e) => update(index, Number(e.target.value))}
@@ -177,7 +177,7 @@ function AssignmentEditor({ initial }: { initial: Parameter[] }) {
                   type="number"
                   min="0"
                   max="100"
-                  step="0.01"
+                  step="1"
                   required
                   disabled={busy}
                   value={Number.isFinite(weights[index]) ? weights[index] : ""}
@@ -188,11 +188,6 @@ function AssignmentEditor({ initial }: { initial: Parameter[] }) {
                     )
                   }
                 />
-                <small>
-                  {Number.isFinite(weights[index])
-                    ? (weights[index] / 100).toFixed(2)
-                    : "—"}
-                </small>
               </div>
             </div>
           ))}
@@ -200,7 +195,7 @@ function AssignmentEditor({ initial }: { initial: Parameter[] }) {
             <strong>Total configurado</strong>
             <span>
               {Number.isFinite(total)
-                ? `${total}% · ${(total / 100).toFixed(2)}`
+                ? `${total}%`
                 : "—"}
             </span>
             <Badge>
@@ -210,15 +205,15 @@ function AssignmentEditor({ initial }: { initial: Parameter[] }) {
         </Card>
         <div className="stack">
           <Card title="Cómo funciona" className="soft">
-            <p>Cada criterio acepta un valor entre 0 y 1.</p>
-            <p>En la interfaz se muestra como porcentaje:</p>
+            <p>Cada criterio acepta un porcentaje entero entre 0 y 100.</p>
+            <p>Por ejemplo:</p>
             <p>
-              <b>0.30 = 30%</b>
+              <b>Proximidad: 30%</b>
               <br />
-              <b>0.25 = 25%</b>
+              <b>Confiabilidad: 25%</b>
             </p>
             <p>
-              La suma de los cuatro criterios debe ser 1.00 para mantener una
+              La suma de los cuatro criterios debe ser 100% para mantener una
               ponderación consistente.
             </p>
             <button
@@ -243,9 +238,9 @@ function AssignmentEditor({ initial }: { initial: Parameter[] }) {
               <button
                 type="button"
                 aria-label="Disminuir paradas"
-                disabled={busy || stops <= 1}
+                disabled={busy || stops <= 2}
                 onClick={() => {
-                  setStops((n) => Math.max(1, n - 1));
+                  setStops((n) => Math.max(2, n - 1));
                   setSaved(false);
                 }}
               >
@@ -295,8 +290,8 @@ function AssignmentEditor({ initial }: { initial: Parameter[] }) {
           className="button secondary"
           disabled={busy || !dirty}
           onClick={() => {
-            setWeights([...baseline.weights]);
-            setStops(baseline.stops);
+            setWeights(baseline.weights.map(Math.round));
+            setStops(Math.max(2, baseline.stops));
             setError("");
             setSaved(false);
           }}

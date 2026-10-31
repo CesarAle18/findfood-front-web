@@ -23,7 +23,7 @@ Crear `.env.local` a partir de `.env.example` y configurar API, Supabase y Googl
 
 Incluye usuarios internos y verificación de voluntarios, donaciones/historial/candidatos/reasignación, planificación y operación manual de flota, entrega en sede, recepción, inventario FEFO y ajustes, sedes, distribuciones, incidencias, alertas, evidencias, notificaciones, indicadores por periodo y configuración del banco/alimentos/asignación/tareas. Los permisos efectivos son los de la API; ADMIN no hereda las operaciones exclusivas de ASESOR_BANCO.
 
-Inicio ofrece accesos a distribuciones e incidencias. Configuración incorpora Asignación, Banco y flota, Alimentos y Tareas. Reportes conserva el registro local de acciones; no es una bitácora compartida del backend. La matriz de requerimientos identifica las limitaciones pendientes.
+Inicio ofrece accesos a distribuciones e incidencias. Configuración incorpora Asignación, Banco y flota, Alimentos y Tareas. Reportes consulta la auditoría global del servidor y requiere desplegar el endpoint nuevo de la rama Conexion_Front. Ver [cambios de administración e instalación del backend](docs/cambios-administrador.md).
 
 La recuperación del panel usa un código enviado por la API y verificado en Supabase. La plantilla Reset Password debe mostrar `{{ .Token }}`. La aplicación también conserva el manejo de sesiones de recuperación recibidas por enlace.
 

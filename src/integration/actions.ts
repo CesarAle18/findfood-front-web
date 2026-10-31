@@ -1,5 +1,6 @@
 ﻿import type { Role } from "./contracts";
 import { canAssignDonation } from "./donation-display";
+import { apiRequest } from "./http";
 export type Values = Record<string, string>;
 export type Row = Record<string, unknown>;
 export interface Source {
@@ -29,7 +30,7 @@ export interface Action {
   fields: Input[];
   initial?: Values;
   description?: string;
-  body?: (v: Values) => Row;
+  body?: (v: Values) => Row | Promise<Row>;
 }
 const admin: Role[] = ["ADMIN"],
   advisor: Role[] = ["ASESOR_BANCO"],
@@ -82,15 +83,17 @@ const catalog = (
     key: collection,
   },
 });
+async function addressLocation(address: string): Promise<{ lat: number; lng: number }> {
+  const result = await apiRequest<{ ubicacion?: { lat: number; lng: number } }>(`/geo/geocodificar?${new URLSearchParams({ direccion: address })}`);
+  const point = result.ubicacion;
+  if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng) || Math.abs(point.lat) > 90 || Math.abs(point.lng) > 180) throw new Error("No se pudo ubicar la dirección. Incluye la ciudad y verifica sus datos.");
+  return point;
+}
 const id = (row: Row) => encodeURIComponent(String(row.id ?? row.lote_id));
 const remark = (v: Values) =>
   v.observacion.trim() ? { observacion: v.observacion.trim() } : {};
 const initial = (row: Row, keys: string[]): Values =>
   Object.fromEntries(keys.map((key) => [key, String(row[key] ?? "")]));
-const location = [
-  num("lat", "Latitud", -90, 90),
-  num("lng", "Longitud", -180, 180),
-].map((f) => ({ ...f, step: 0.000001 }));
 const thermal: [string, string][] = [
   ["SECO", "Seco"],
   ["REFRIGERADO", "Refrigerado"],
@@ -102,7 +105,7 @@ export function recordActions(path: string, row: Row): Action[] {
       {
         key: "warehouse-edit",
         label: "Editar almacén",
-        roles: staff,
+        roles: admin,
         endpoint: prefix,
         method: "PATCH",
         description: "La capacidad en kg corresponde al régimen de esta sede.",
@@ -143,7 +146,7 @@ export function recordActions(path: string, row: Row): Action[] {
       ...(canAssignDonation(row) ? [{
         key: "donation-reassign",
         label: "Reasignar donación",
-        roles: staff,
+        roles: admin,
         endpoint: `${prefix}/reasignar`,
         method: "POST" as const,
         description:
@@ -289,8 +292,8 @@ export function recordActions(path: string, row: Row): Action[] {
 export function createAction(path: string): Action | null {
   if (path === "/rutas") return {
     key: "route-create", label: "Planificar ruta de flota", roles: advisor, endpoint: "/rutas", method: "POST",
-    description: "Selecciona donaciones publicadas o expiradas. La API verifica la flota, la sede, las ventanas y el límite de paradas, y calcula el recorrido.",
-    fields: [{ key: "donacion_ids", label: "Donaciones de la ruta", type: "multi", required: true, source: { endpoint: "/donaciones", states: ["PUBLICADA", "EXPIRADA"] } }],
+    description: "Selecciona donacion",
+    fields: [{ key: "donacion_ids", label: "Donaciones activas", type: "multi", required: true, source: { endpoint: "/donaciones?estado=PUBLICADA", states: ["PUBLICADA"] } }],
     body: (v) => {
       const ids: string[] = JSON.parse(v.donacion_ids || "[]");
       if (!ids.length || ids.length > 5) throw new Error("Selecciona entre 1 y 5 donaciones. Se aplicará el límite configurado del banco.");
@@ -307,14 +310,13 @@ export function createAction(path: string): Action | null {
       fields: [
         str("nombre", "Nombre", 2, 80),
         str("direccion", "Dirección", 5, 255),
-        ...location,
         choice("tipo", "Almacenamiento", thermal),
         num("capacidad_kg", "Capacidad (kg)", 1),
       ],
-      body: (v) => ({
+      body: async (v) => ({
         nombre: v.nombre.trim(),
         direccion: v.direccion.trim(),
-        ubicacion: { lat: Number(v.lat), lng: Number(v.lng) },
+        ubicacion: await addressLocation(v.direccion.trim()),
         tipo: v.tipo,
         capacidad_kg: Number(v.capacidad_kg),
       }),
@@ -348,7 +350,7 @@ export function createAction(path: string): Action | null {
 export function bankAction(row: Row = {}): Action {
   return {
     key: "bank-save",
-    label: "Guardar banco",
+    label: "Editar Banco",
     roles: admin,
     endpoint: "/admin/banco",
     method: "PUT",
@@ -364,16 +366,16 @@ export function bankAction(row: Row = {}): Action {
       str("ciudad", "Ciudad", 1, 80),
       bool("tiene_flota_propia", "Flota propia"),
     ],
-    body: (v) => {
+    body: async (v) => {
       const lat = Number(row.lat), lng = Number(row.lng);
-      if (row.lat == null || row.lng == null || row.lat === "" || row.lng === "" || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-        throw new Error("No se pudo recuperar la ubicación guardada del banco. Actualiza la información antes de guardar.");
-      }
+      const unchanged = v.direccion.trim() === row.direccion && v.ciudad.trim() === row.ciudad;
+      const valid = row.lat != null && row.lng != null && row.lat !== "" && row.lng !== "" && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+      const ubicacion = unchanged && valid ? { lat, lng } : await addressLocation(`${v.direccion.trim()}, ${v.ciudad.trim()}`);
       return {
       nombre: v.nombre.trim(),
       direccion: v.direccion.trim(),
       ciudad: v.ciudad.trim(),
-      ubicacion: { lat, lng },
+      ubicacion,
       tiene_flota_propia: v.tiene_flota_propia === "true",
       };
     },
@@ -389,7 +391,7 @@ export function parameterAction(row: Row): Action {
     fields: [str("valor", "Valor", 1, 2000)],
     initial: initial(row, ["valor"]),
     description:
-      "Los cuatro pesos deben sumar 1; la API valida cada cambio. El máximo de paradas está entre 1 y 5.",
+      "Los porcentajes deben sumar 100%. El máximo de paradas está entre 2 y 5.",
   };
 }
 export function foodAction(row?: Row): Action {

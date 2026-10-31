@@ -1,5 +1,5 @@
 ﻿import { useSyncExternalStore } from "react";
-export type AuditEntry = { id: string; fecha: string; actor: string; modulo: string; accion: string; entidad: string; metodo: string; detalles?: Record<string, string> };
+export type AuditEntry = { id: string; fecha: string; actor: string; modulo: string; accion: string; entidad: string; metodo: string; detalles?: Record<string, string>; descripcion?: string; roles?: string[] };
 const event = "findfood:audit";
 const memory = new Map<string, string>();
 const key = (user: string) => `findfood:audit:${user}`;

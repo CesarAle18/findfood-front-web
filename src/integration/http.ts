@@ -19,12 +19,22 @@ export function errorMessage(error: unknown): string {
     ? error.message
     : "No fue posible completar la operación.";
 }
+async function abortable<T>(request: Promise<T>, signal: AbortSignal): Promise<T> {
+  signal.throwIfAborted();
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(new Error("La consulta tardó demasiado o fue cancelada. Intenta nuevamente."));
+    signal.addEventListener("abort", abort, { once: true });
+    request.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   if (!supabase) throw new Error("Falta configurar la conexión.");
-  const { data, error } = await supabase.auth.getSession();
+  const timeout = AbortSignal.timeout(20000);
+  const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+  const { data, error } = await abortable(supabase.auth.getSession(), signal);
   if (error) throw error;
   if (!data.session)
     throw new ApiError({
@@ -36,10 +46,6 @@ export async function apiRequest<T>(
   headers.set("Authorization", `Bearer ${data.session.access_token}`);
   headers.set("Accept", "application/json, application/problem+json");
   if (options.body) headers.set("Content-Type", "application/json");
-  const timeout = AbortSignal.timeout(20000);
-  const signal = options.signal
-    ? AbortSignal.any([options.signal, timeout])
-    : timeout;
   let response: Response;
   try {
     response = await fetch(`${integrationConfig.apiUrl}${path}`, {

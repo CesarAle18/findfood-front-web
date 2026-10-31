@@ -5,6 +5,7 @@ import { readActivity, useActivity } from "./activity";
 import { textValue } from "./read-format";
 import { apiRequest, errorMessage } from "./http";
 import { useNotifications } from "./use-notifications";
+import { notificationTarget } from "./notification-target";
 
 export function NotificationsList() {
   const user = useSession()?.session?.user.id ?? "";
@@ -19,7 +20,7 @@ export function NotificationsList() {
     id: String(n.id), key: `server:${n.id}`, local: false,
     titulo: String(n.titulo ?? "Notificación"), cuerpo: String(n.cuerpo ?? ""),
     created_at: String(n.created_at ?? ""), leida_at: n.leida_at,
-    href: null as string | null,
+    href: notificationTarget(n),
   }));
   const notices = [
     ...local.map((n) => ({ ...n, key: `local:${n.id}`, local: true })),
@@ -49,7 +50,7 @@ export function NotificationsList() {
     {server.error && <p role="alert" className="integration-error">{server.error} Puedes consultar los avisos ya disponibles y volver a intentarlo con Actualizar lista.</p>}
     {server.loading && <p role="status">Cargando notificaciones…</p>}
     {filtered.length > 0 ? <ul className="activity-list">{filtered.slice(0, limit).map((n) => <li key={n.key} className={n.leida_at ? "" : "is-unread"}>
-      {n.href ? <a href={n.href} onClick={() => { if (n.local) readActivity(user, n.id); }}><strong>{n.titulo}</strong><span>{n.cuerpo}</span></a> : <div><strong>{n.titulo}</strong><p>{n.cuerpo}</p></div>}
+      {n.href ? <a href={n.href} onClick={() => { if (!n.leida_at) void markRead(n); }}><strong>{n.titulo}</strong><span>{n.cuerpo}</span></a> : <div><strong>{n.titulo}</strong><p>{n.cuerpo}</p></div>}
       {n.created_at && <time dateTime={n.created_at}>{textValue(n.created_at)}</time>}
       <div className="notification-read-state">{n.leida_at ? <span>Leída</span> : <button className="table-action" disabled={busy} onClick={() => void markRead(n)}>Marcar leída</button>}</div>
     </li>)}</ul> : !server.loading && <p role="status">{search ? "No se encontraron notificaciones con esa búsqueda." : "No hay notificaciones por ahora."}</p>}

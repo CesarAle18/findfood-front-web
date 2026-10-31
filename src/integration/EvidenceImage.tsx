@@ -24,13 +24,10 @@ export function EvidenceImage({ url, label }: { url: string; label: string }) {
           {failed && (
             <p role="status">
               No se pudo mostrar la imagen. El enlace puede haber vencido o el
-              formato no admite vista previa. Actualiza la consulta o abre el
-              archivo.
+              formato no admite vista previa. Actualiza la consulta para volver
+              a intentarlo.
             </p>
           )}
-          <a href={url} target="_blank" rel="noreferrer">
-            Abrir imagen en otra pestaña
-          </a>
         </>
       )}
     </div>

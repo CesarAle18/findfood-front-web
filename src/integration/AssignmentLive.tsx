@@ -6,8 +6,12 @@ import { fieldLabel, fieldValue, textValue } from "./read-format";
 import { ActionButtons } from "./ActionForm";
 import { recordActions, type Row } from "./actions";
 import { canAssignDonation, donationDetails } from "./donation-display";
+import { advisorDetails } from "./advisor-display";
+import { useSession } from "./session-context";
 
 function Facts({ value }: { value: Row }) {
+  const profile = useSession()?.profile;
+  if (profile?.roles.includes("ASESOR_BANCO") && !profile.roles.includes("ADMIN")) value = advisorDetails(value) as Row;
   return <dl className="assignment-facts">{Object.entries(value).filter(([, v]) => v == null || typeof v !== "object").map(([key, v]) => <div key={key}><dt>{fieldLabel(key)}</dt><dd>{fieldValue(key, v)}</dd></div>)}</dl>;
 }
 

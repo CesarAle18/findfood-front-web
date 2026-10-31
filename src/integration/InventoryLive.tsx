@@ -8,16 +8,10 @@ import { recordActions } from "./actions";
 import { ActionButtons } from "./ActionForm";
 import { DetailBody } from "./ReadViews";
 import { fieldValue, textValue } from "./read-format";
-function expiry(row: Row) {
-  if (!row.fecha_vencimiento) return Infinity;
-  const value = String(row.fecha_vencimiento);
-  const time = Date.parse(/^\d{4}-\d{2}-\d{2}(T00:00:00(?:\.000)?Z)?$/.test(value) ? `${value.slice(0, 10)}T23:59:59.999-05:00` : value);
-  return Number.isFinite(time) ? time : Infinity;
-}
+import { available, expiry, inventoryState } from "./inventory-state";
 function refrigerated(row: Row) {
   return row.requiere_refrigeracion === true || row.regimen === "REFRIGERADO" || row.tipo_almacenamiento === "REFRIGERADO";
 }
-function available(row: Row) { return Number(row.cantidad_disponible ?? row.peso_disponible_kg) > 0 && !["VENCIDO", "DESCARTADO", "AGOTADO"].includes(String(row.estado)); }
 export function InventoryLive() {
   const [result, setResult] = useState<{ rows?: Row[]; error?: string }>({});
   const [attempt, setAttempt] = useState(0);
@@ -35,6 +29,7 @@ export function InventoryLive() {
   const refresh = () => { setResult({}); setAttempt((n) => n + 1); };
   useEffect(() => {
     const controller = new AbortController();
+    const timeout = window.setTimeout(() => { controller.abort(); setResult({ error: "La consulta de inventario tardó demasiado. Intenta nuevamente." }); }, 30000);
     async function load() {
       const all: Row[] = [];
       const ids = new Set<string>();
@@ -50,12 +45,12 @@ export function InventoryLive() {
         }
         start += batch.length;
         if (Array.isArray(response) || start >= response.total) break;
-        if (!batch.length || !added || !Number.isFinite(response.total)) throw new Error("No fue posible completar la consulta del inventario.");
+        if (!batch.length || !added || !Number.isFinite(response.total) || start >= 10000) throw new Error("No fue posible completar la consulta del inventario.");
       }
       if (!controller.signal.aborted) setResult({ rows: all });
     }
-    void load().catch((e: unknown) => { if (!controller.signal.aborted) setResult({ error: errorMessage(e) }); });
-    return () => controller.abort();
+    void load().catch((e: unknown) => { if (!controller.signal.aborted) setResult({ error: errorMessage(e) }); }).finally(() => window.clearTimeout(timeout));
+    return () => { window.clearTimeout(timeout); controller.abort(); };
   }, [attempt, warehouse, food]);
   useEffect(() => {
     const changed = () => { setResult({}); setAttempt((n) => n + 1); };
@@ -64,13 +59,13 @@ export function InventoryLive() {
   }, []);
   const rows = (result.rows ?? []).map<Row>((row) => {
     const type = catalog.data?.tipos_alimento.find((t) => String(t.id) === String(row.tipo_alimento_id));
-    return { ...row, ...(type ? { requiere_refrigeracion: type.requiere_refrigeracion, tipo_almacenamiento: type.tipo_almacenamiento } : {}) };
+    return { ...row, estado: inventoryState(row, now), ...(type ? { requiere_refrigeracion: type.requiere_refrigeracion, tipo_almacenamiento: type.tipo_almacenamiento } : {}) };
   }).sort((a, b) => expiry(a) - expiry(b));
 
-  const stock = rows.filter(available);
+  const stock = rows.filter((row) => available(row, now));
   const soon = stock.filter((r) => expiry(r) >= now && expiry(r) - now <= 86400000).length;
   const expired = rows.filter((r) => expiry(r) < now && Number(r.cantidad_disponible ?? r.peso_disponible_kg) > 0).length;
-  const weights = rows.map((r) => r.peso_disponible_kg == null || r.peso_disponible_kg === "" ? NaN : Number(r.peso_disponible_kg));
+  const weights = stock.map((r) => r.peso_disponible_kg == null || r.peso_disponible_kg === "" ? NaN : Number(r.peso_disponible_kg));
   const filtered = rows.filter((r) => (!search || [r.codigo_lote, r.tipo_alimento, r.almacen].some((v) => textValue(v).toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")))) && (!onlyAvailable || available(r)) && (!regime || (regime === "REFRIGERADO" ? refrigerated(r) : r.requiere_refrigeracion === false || r.regimen === "SECO" || r.tipo_almacenamiento === "SECO")));
   const visible = filtered.slice(offset, offset + 20);
   const summary = [["Lotes disponibles", stock.length, "green"], ["Vencen en ≤ 24 h", soon, "red"], ["Refrigerados", stock.filter(refrigerated).length, "blue"], ["Peso disponible", weights.every(Number.isFinite) ? `${textValue(weights.reduce((a, b) => a + b, 0))} kg` : "No disponible", "amber"]];

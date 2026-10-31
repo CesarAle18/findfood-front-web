@@ -47,7 +47,6 @@ function RouteMapDetail({ id }: { id: string }) {
   return <>
     <p>{textValue(data.estado)} · {textValue(data.distancia_total_km)} km</p>
     <RouteTracking key={id + String(data.estado)} id={id} active={data.estado === "EN_CURSO"} path={path} markers={markers.flatMap((m, index) => m.point ? [{ ...m.point, order: index + 1 }] : [])} label={`Mapa de la ruta ${textValue(data.codigo ?? id)}`} />
-    <p className="muted">{track.length > 1 ? "Trazado entregado por la API." : "Paradas conectadas en orden. La API no incluye el trazado GPS del recorrido."}</p>
     {markers.some((m) => !m.point) && <p role="status">Algunas paradas no tienen coordenadas y no aparecen en el mapa.</p>}
     <ol className="route-stop-list">{markers.map(({ stop }, i) => <li key={String(stop.id ?? i)}><strong>{textValue(stop.direccion)}</strong><span>{textValue(stop.tipo)} · {textValue(stop.estado)}</span></li>)}</ol>
   </>;

@@ -22,8 +22,10 @@ export function OptionsField({
   const source = field.source!;
   useEffect(() => {
     const controller = new AbortController();
+    const timeout = window.setTimeout(() => { controller.abort(); setError("La consulta de opciones tardó demasiado. Intenta nuevamente."); }, 30000);
     async function load(s: Source) {
       let rows: Row[] = [];
+      const seen = new Set<string>();
       let offset = 0;
       while (!controller.signal.aborted) {
         const endpoint = s.key
@@ -38,7 +40,8 @@ export function OptionsField({
         ) as Row[];
         if (!Array.isArray(batch))
           throw new Error("La API no devolvió las opciones esperadas.");
-        rows = rows.concat(batch);
+        const fresh = batch.filter((row) => { const id = String(row.id); if (seen.has(id)) return false; seen.add(id); return true; });
+        rows = rows.concat(fresh);
         if (
           s.key ||
           Array.isArray(result) ||
@@ -46,6 +49,7 @@ export function OptionsField({
           rows.length >= Number(record.total)
         )
           break;
+        if (!fresh.length || !Number.isFinite(Number(record.total)) || offset >= 10000) throw new Error("No fue posible completar las opciones. Intenta nuevamente.");
         offset += batch.length;
       }
       if (!controller.signal.aborted)
@@ -55,8 +59,8 @@ export function OptionsField({
     }
     load(source).catch((err) => {
       if (!controller.signal.aborted) setError(errorMessage(err));
-    });
-    return () => controller.abort();
+    }).finally(() => window.clearTimeout(timeout));
+    return () => { window.clearTimeout(timeout); controller.abort(); };
   }, [source, retry]);
   const label = (r: Row) =>
     String(r.nombre ?? r.codigo ?? r.titulo ?? r.nombres ?? r.id);
@@ -207,15 +211,15 @@ export function ActionForm({
                   `${field.label} debe tener al menos ${field.min} caracteres.`,
                 );
             }
+            lock.current = true;
+            setBusy(true);
             const body = action.body
-              ? action.body(values)
+              ? await action.body(values)
               : Object.fromEntries(
                   action.fields
                     .filter((f) => values[f.key].trim())
                     .map((f) => [f.key, values[f.key].trim()]),
                 );
-            lock.current = true;
-            setBusy(true);
             await apiRequest(action.endpoint, {
               method: action.method,
               body: JSON.stringify(body),
@@ -337,11 +341,12 @@ export function ActionButtons({
   const auth = useSession()!,
     [selected, setSelected] = useState<Action | null>(null),
     [saved, setSaved] = useState(false);
+  const allowed = actions.filter((a) => a.roles.some((r) => auth.profile?.roles.includes(r)));
+  if (!allowed.length && !selected && !saved) return null;
   return (
     <>
       <div className="card-actions">
-        {actions
-          .filter((a) => a.roles.some((r) => auth.profile?.roles.includes(r)))
+        {allowed
           .map((a) => (
             <button
               className="button secondary"

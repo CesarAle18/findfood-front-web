@@ -1537,6 +1537,16 @@ fieldset.form-stack {
 .dashboard-extra > summary { cursor: pointer; color: #16785c; font-weight: 600; }
 .dashboard-extra[open] > summary { margin-bottom: 20px; }
 .dashboard-extra .card { margin-bottom: 0; }
+.dashboard-extra-content { gap: 24px; }
+.settings-page { gap: 28px; }
+.settings-page .assignment-layout > .stack { gap: 28px; }
+.settings-tabs .card-actions { margin-top: 0; }
+.bank-management-actions { padding-top: 20px; border-top: 1px solid var(--border); }
+.food-filters { display: grid; grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(140px, 1fr)); padding: 0; align-items: end; }
+.food-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.food-toolbar .card-actions { margin-top: 0; }
+@media (max-width: 900px) { .food-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .food-filters { grid-template-columns: minmax(0, 1fr); } }
 .dashboard-period { align-items: end; justify-content: flex-start; }
 .dashboard-period .button { margin-left: 0; }
 .inventory-filters { display: grid; grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(150px, 1fr)); align-items: end; padding: 0; }

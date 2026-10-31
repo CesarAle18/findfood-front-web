@@ -20,6 +20,7 @@ import { NotificationsList } from "./NotificationsList";
 import { useActivityObserver } from "./activity-observer";
 import { useActivity } from "./activity";
 import { canAssignDonation, donationDetails, donationHistory, nonEmptyDetails } from "./donation-display";
+import { inventoryState } from "./inventory-state";
 
 type Row = Record<string, unknown>;
 type Column = [string, string];
@@ -36,7 +37,7 @@ interface ListConfig {
 const configs: Record<string, ListConfig> = {
   "/alertas": {
     title: "Alertas",
-    endpoint: "/alertas?solo_abiertas=false",
+    endpoint: "/alertas?solo_abiertas=true",
     columns: [
       ["lote_inventario.codigo_lote", "Lote"],
       ["mensaje", "Mensaje"],
@@ -170,8 +171,12 @@ function Records({ config }: { config: ListConfig }) {
       : "");
   const read = useRead<Row[] | Page<Row>>(endpoint, ["/me/notificaciones", "/donaciones", "/rutas"].includes(path) ? 15000 : 0);
   const data = read.data;
-  const rows = Array.isArray(data) ? data : data?.datos || [];
-  const total = Array.isArray(data) ? data.length : data?.total || 0;
+  const rows = (Array.isArray(data) ? data : data?.datos || []).filter((row) => path !== "/alertas" || !row.atendida_at);
+  const total = Array.isArray(data) ? rows.length : data?.total || 0;
+  const requestedId = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("id");
+  const requested = useRead<Row>(requestedId && config.detail ? `${config.detail}/${encodeURIComponent(requestedId)}` : null);
+  const [dismissedId, setDismissedId] = useState<string | null>(null);
+  const selection = selected ?? (requestedId && requestedId !== dismissedId ? requested.data ?? rows.find((row) => String(row[config.idField || "id"]) === requestedId) : null);
   const visible = rows.filter((row) =>
     config.columns.some(([key]) =>
       textValue(at(row, key))
@@ -180,11 +185,11 @@ function Records({ config }: { config: ListConfig }) {
     ),
   );
   const selectedRow =
-    selected &&
+    selection &&
     (rows.find(
-      (row) => row[config.idField || "id"] === selected[config.idField || "id"],
+      (row) => row[config.idField || "id"] === selection[config.idField || "id"],
     ) ||
-      selected);
+      selection);
   const warehouseWeights =
     path === "/almacenes"
       ? rows.map((row) =>
@@ -390,12 +395,13 @@ function Records({ config }: { config: ListConfig }) {
         <Drawer
           title={`Detalle · ${config.title}`}
           close={window.location.hash}
-          onClose={() => setSelected(null)}
+          onClose={() => { setSelected(null); setDismissedId(requestedId); }}
         >
           <ActionButtons
             actions={recordActions(mutationPath, selectedRow)}
             onSaved={() => {
               setSelected(null);
+              setDismissedId(requestedId);
               read.refresh();
             }}
           />
@@ -417,7 +423,7 @@ export function ReadScreen({ path, id }: { path: string; id: string | null }) {
   const auth = useSession()!;
   const config = configs[path];
   if (
-    (config?.admin || path === "/configuracion") &&
+    (config?.admin || path === "/configuracion" || path === "/reportes") &&
     !auth.profile?.roles.includes("ADMIN")
   )
     return (
@@ -463,9 +469,6 @@ export function DetailBody({
   const read = useRead<Row>(endpoint, path === "/rutas" ? 15000 : 0);
   return (
     <>
-      <button className="button secondary" type="button" onClick={read.refresh}>
-        Actualizar detalle
-      </button>
       <ReadBody
         endpoint={endpoint}
         transform={path === "/donaciones" ? donationDetails : path === "/rutas" ? nonEmptyDetails : undefined}
@@ -474,7 +477,7 @@ export function DetailBody({
           data: Object.fromEntries(
             Object.entries(read.data).filter(([key]) => !["geometria", "geometry"].includes(key)),
           ),
-        } : read}
+        } : path === "/inventario" && read.data ? { ...read, data: { ...read.data, estado: inventoryState(read.data) } } : read}
       />
       {path === "/recepciones" && read.data && <p className="muted">Esta recepción ya fue registrada con resultado {textValue(read.data.estado)}. La decisión final se conserva para mantener la trazabilidad.</p>}
       {path === "/donaciones" && (
