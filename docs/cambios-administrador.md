@@ -1,5 +1,17 @@
 # Cambios de administración
 
+## Verificación del repositorio del 3 de noviembre de 2026
+
+La rama remota `Conexion_Front` ya incorpora `GET /v1/admin/auditoria` en el commit `2b48a41069404c6807e9a854fa1e7ffe63dc7571` («Nuevo endpoint para el reporte de auditorias»). Su contrato es compatible con `AuditLive` y `loadGlobalAudit`: no hace falta cambiar la ruta del frontend ni aplicar el parche antiguo para añadir esta consulta.
+
+La versión publicada en GitHub consulta la tabla `auditoria`, permite filtros `desde`, `hasta`, `usuario_id`, `rol`, `entidad`, `accion`, `limite` y `desplazamiento`, y exige ADMIN. Devuelve identificadores como cadenas, acciones en mayúsculas, `metodo` vacío cuando no se conoce y los valores anteriores/nuevos serializados en `detalles`. La prueba de navegador de administración se actualizó con ese formato y pasó, incluidos tabla, detalle, filtros y exportación.
+
+La existencia del código en GitHub no confirma que el backend desplegado ya utilice ese commit. La URL base del frontend debe terminar en `/v1`; el reporte añade `/admin/auditoria`.
+
+El parche y la propuesta local descritos a continuación son anteriores a ese commit. No aplicar el parche completo sobre la nueva rama sin revisar los cambios: aquella propuesta combinaba varias tablas, mientras que el endpoint remoto actual consulta `auditoria`.
+
+## Propuesta local anterior
+
 El frontend usa `GET /admin/auditoria` para consultar registros compartidos del servidor, en lugar de presentar la bitácora local de la cuenta. El endpoint admite `desde` inclusivo, `hasta` exclusivo, `limite` y `desplazamiento`; devuelve `{ datos, total, limite, desplazamiento }`.
 
 La implementación del backend está en `.tools/admin-api`, una copia de la rama `Conexion_Front` de `CesarAle18/findfood-api`, basada en `5bd5dc6ff78a4609eece88228d0db612eb07ae93`. El archivo `backend-administrador.patch` permite aplicar los cambios a otro checkout de esa misma rama:

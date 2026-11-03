@@ -21,6 +21,7 @@ import { useActivityObserver } from "./activity-observer";
 import { useActivity } from "./activity";
 import { canAssignDonation, donationDetails, donationHistory, nonEmptyDetails } from "./donation-display";
 import { inventoryState } from "./inventory-state";
+import { loadAdvisorDonations } from "./donation-read";
 
 type Row = Record<string, unknown>;
 type Column = [string, string];
@@ -169,7 +170,8 @@ function Records({ config }: { config: ListConfig }) {
     (config.paginated
       ? `${config.endpoint.includes("?") ? "&" : "?"}limite=20&desplazamiento=${offset}`
       : "");
-  const read = useRead<Row[] | Page<Row>>(endpoint, ["/me/notificaciones", "/donaciones", "/rutas"].includes(path) ? 15000 : 0);
+  const advisorDonations = config.donation && auth.profile?.roles.includes("ASESOR_BANCO") && !auth.profile.roles.includes("ADMIN");
+  const read = useRead<Row[] | Page<Row>>(endpoint, ["/me/notificaciones", "/donaciones", "/rutas"].includes(path) ? 15000 : 0, advisorDonations ? loadAdvisorDonations : undefined);
   const data = read.data;
   const rows = (Array.isArray(data) ? data : data?.datos || []).filter((row) => path !== "/alertas" || !row.atendida_at);
   const total = Array.isArray(data) ? rows.length : data?.total || 0;
@@ -184,12 +186,13 @@ function Records({ config }: { config: ListConfig }) {
         .includes(search.toLocaleLowerCase("es")),
     ),
   );
-  const selectedRow =
+  const candidate =
     selection &&
     (rows.find(
       (row) => row[config.idField || "id"] === selection[config.idField || "id"],
     ) ||
       selection);
+  const selectedRow = advisorDonations && candidate?.estado === "EXPIRADA" ? null : candidate;
   const warehouseWeights =
     path === "/almacenes"
       ? rows.map((row) =>
@@ -466,7 +469,9 @@ export function DetailBody({
   row: Row;
   endpoint: string;
 }) {
-  const read = useRead<Row>(endpoint, path === "/rutas" ? 15000 : 0);
+  const profile = useSession()?.profile;
+  const read = useRead<Row>(endpoint, ["/rutas", "/donaciones"].includes(path) ? 15000 : 0);
+  if (path === "/donaciones" && read.data?.estado === "EXPIRADA" && profile?.roles.includes("ASESOR_BANCO") && !profile.roles.includes("ADMIN")) return <p>Esta donación no está disponible.</p>;
   return (
     <>
       <ReadBody

@@ -687,7 +687,9 @@ const jwt = () =>
   }
   try {
     await scenario("administrador global: auditoría, configuración y almacén sin coordenadas", async ({ page, state, login }) => {
-      const remote = ["ASESOR_BANCO", "DONANTE", "VOLUNTARIO", "ADMIN"].map((role, index) => ({ id: `servidor:${index}`, fecha: new Date(Date.now() - 60000).toISOString(), actor: `${role.toLowerCase()}@example.test`, roles: [role], modulo: "Inventario", accion: "Registrar entrada", entidad: "lote", metodo: "REGISTRO", descripcion: `Registrar entrada del lote L-${index}: 10 unidades.` }));
+      // Contrato publicado en Conexion_Front, commit 2b48a41: id serializado,
+      // acción en mayúsculas, método desconocido vacío y cambios como JSON.
+      const remote = ["ASESOR_BANCO", "DONANTE", "VOLUNTARIO", "ADMIN"].map((role, index) => ({ id: String(9007199254740993n + BigInt(index)), fecha: new Date(Date.now() - 60000).toISOString(), actor: `${role.toLowerCase()}@example.test`, usuario_id: userId(index), roles: [role], modulo: "Inventario", accion: "ACTUALIZAR", entidad: "lote_inventario", metodo: "", descripcion: `actualizar lote_inventario (L-${index}).`, detalles: { id: `L-${index}`, valores_anteriores: JSON.stringify({ estado: "DISPONIBLE" }), valores_nuevos: JSON.stringify({ estado: "VENCIDO" }) } }));
       await page.route(`${api}/v1/admin/auditoria?*`, async (route) => {
         await checkApiContract(route.request(), state.roles);
         await route.fulfill({ json: { datos: remote, total: remote.length, limite: 100, desplazamiento: 0 } });
@@ -702,6 +704,12 @@ const jwt = () =>
       const table = page.getByRole("table", { name: "Reporte de auditorías" });
       await table.getByText("asesor_banco@example.test", { exact: true }).waitFor();
       assert.equal(await table.locator("tbody tr").count(), 4);
+      assert.equal(await table.getByText("Actualizar", { exact: true }).count(), 4);
+      await table.locator("tbody tr").first().getByRole("button", { name: "Ver", exact: true }).click();
+      const detail = page.getByRole("dialog");
+      await detail.getByText('actualizar lote_inventario (L-0).', { exact: true }).waitFor();
+      await detail.getByText('{"estado":"VENCIDO"}', { exact: true }).waitFor();
+      await page.keyboard.press("Escape");
       assert.equal(await table.getByRole("columnheader", { name: "Entidad", exact: true }).count(), 0);
       await table.getByRole("columnheader", { name: "Descripción", exact: true }).waitFor();
       await page.getByLabel("Rol", { exact: true }).selectOption("ASESOR_BANCO");
@@ -751,6 +759,23 @@ const jwt = () =>
       const created = state.newMutations.find((request) => request.path === "/v1/almacenes" && request.body.nombre === "Sede prueba");
       assert(created);
       assert.deepEqual(created.body.ubicacion, { lat: 4.66, lng: -74.06 });
+    });
+    await scenario("donaciones asesor: ocultar expiradas y conservar canceladas", async ({ page, state, login }) => {
+      state.roles = ["ASESOR_BANCO"];
+      state.activityRows = { "/v1/donaciones": Array.from({ length: 121 }, (_, index) => ({ id: userId(index + 50), codigo: index === 100 ? "DON-CANCELADA-VISIBLE" : `DON-${index}`, estado: index < 100 ? "EXPIRADA" : index === 100 ? "CANCELADA" : "PUBLICADA", peso_estimado_kg: 10 })) };
+      await login(true);
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.goto(`${base}/#/donaciones`);
+      await page.getByText("1–20 de 21 registros", { exact: true }).waitFor();
+      const table = page.locator(".table-card table");
+      await table.getByText("DON-CANCELADA-VISIBLE", { exact: true }).waitFor();
+      assert.equal(await table.getByText("Expirada", { exact: true }).count(), 0);
+      await page.getByRole("button", { name: "Siguiente", exact: true }).click();
+      await page.getByText("21–21 de 21 registros", { exact: true }).waitFor();
+      assert.equal(await table.locator("tbody tr").count(), 1);
+      state.roles = ["ADMIN"];
+      await page.reload();
+      await table.getByText("Expirada", { exact: true }).first().waitFor();
     });
     await scenario("configuración alimentos: filtros, paginación y reactivación", async ({ page, state, login }) => {
       const foods = Array.from({ length: 31 }, (_, index) => ({ id: index + 1, codigo: index === 0 ? "MAMONCILLO" : `ALIMENTO_${index}`, nombre: index === 0 ? "Mamoncillo" : `Producto ${String(index).padStart(2, "0")}`, activo: index !== 0, tipo_almacenamiento: index % 2 ? "REFRIGERADO" : "SECO", requiere_refrigeracion: index % 2 === 1, perecedero: true, vida_util_dias: 30 }));
