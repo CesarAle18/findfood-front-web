@@ -1,4 +1,4 @@
-﻿import { readPaths } from "./integration/read-paths";
+import { readPaths } from "./integration/read-paths";
 import {
   ReadScreen,
   NotificationsRead,
@@ -81,7 +81,7 @@ const headings: Record<string, [string, string]> = {
   ],
   "/pantallas": [
     "Pantallas del diseño",
-    "Explora los módulos y paneles de Find Food.",
+    "Explora los módulos y paneles de FindFood.",
   ],
 };
 
@@ -162,7 +162,7 @@ export default function App({
   const title = heading[0];
 
   useEffect(() => {
-    document.title = `${title} · Find Food`;
+    document.title = `${title} · FindFood`;
   }, [title]);
 
   if (!data) {
@@ -185,7 +185,7 @@ export default function App({
         ) : (
           <>
             <div className="spinner" />
-            <p>Cargando Find Food…</p>
+            <p>Cargando FindFood…</p>
           </>
         )}
       </main>
@@ -494,7 +494,7 @@ export default function App({
           </div>
 
           <footer className="app-footer">
-            Find Food · Banco de alimentos
+            FindFood · Banco de alimentos
           </footer>
         </main>
       </div>

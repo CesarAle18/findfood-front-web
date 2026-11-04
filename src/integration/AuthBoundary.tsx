@@ -34,7 +34,7 @@ export function AuthBoundary({ children }: { children: ReactNode }) {
     return (
       <main className="loading" role="status">
         <div className="spinner" />
-        <p>Conectando con Find Food…</p>
+        <p>Conectando con FindFood…</p>
       </main>
     );
   if (restricted && !auth.recovery) return null;

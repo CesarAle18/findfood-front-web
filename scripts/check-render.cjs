@@ -35,7 +35,7 @@ try {
     const html = renderToStaticMarkup(
       React.createElement(App, { initialPath: path }),
     );
-    assert(html.includes("Find Food") || (["/restablecer-contrasena", "/recuperar-contrasena"].some(route => path.startsWith(route)) && html.includes("contraseña")), name);
+    assert(html.includes("FindFood") || (["/restablecer-contrasena", "/recuperar-contrasena"].some(route => path.startsWith(route)) && html.includes("contraseña")), name);
     assert(!html.includes("Página no encontrada"), name);
     assert(!html.includes("Registro no encontrado"), name);
     for (const match of html.matchAll(/href="#([^"?]*)(?:[^\"]*)"/g)) {
@@ -53,7 +53,7 @@ try {
     const html = renderToStaticMarkup(
       React.createElement(App, { initialPath: path }),
     );
-    assert(html.includes("Find Food"));
+    assert(html.includes("FindFood"));
     assert(!html.includes("Registro no encontrado"));
   }
   const selected = renderToStaticMarkup(

@@ -55,7 +55,7 @@ export function Brand() {
   return (
     <a className="brand" href="#/inicio">
       <img src="/brand/findfood-logo.png" alt="" />
-      <span>Find Food</span>
+      <span>FindFood</span>
     </a>
   );
 }

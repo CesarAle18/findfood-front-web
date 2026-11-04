@@ -1,4 +1,4 @@
-﻿import { requestPanelRecovery } from "./panel-auth";
+import { requestPanelRecovery } from "./panel-auth";
 import { useState } from "react";
 import { Field, Icon, LinkButton } from "../components/ui";
 import { supabase, rememberSession } from "./supabase";
@@ -34,7 +34,7 @@ export function AuthLive({ forgot = false }: { forgot?: boolean }) {
           )}
         </div>
         <h1>
-          {forgot ? "¿Olvidaste tu contraseña?" : "Bienvenido a Find Food"}
+          {forgot ? "¿Olvidaste tu contraseña?" : "Bienvenido a FindFood"}
         </h1>
         <p>
           {forgot

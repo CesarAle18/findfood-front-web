@@ -9,7 +9,7 @@ export function ConnectedRoot() {
   if (error)
     return (
       <main className="auth-page">
-        <Card title="Configura la conexión de Find Food">
+        <Card title="Configura la conexión de FindFood">
           <p role="alert">{error}</p>
           <p>
             Copia .env.example a .env.local, completa sus valores y reinicia npm

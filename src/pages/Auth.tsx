@@ -17,7 +17,7 @@ function DemoAuth({ forgot = false }: { forgot?: boolean }) {
           )}
         </div>
         <h1>
-          {forgot ? "¿Olvidaste tu contraseña?" : "Bienvenido a Find Food"}
+          {forgot ? "¿Olvidaste tu contraseña?" : "Bienvenido a FindFood"}
         </h1>
         <p>
           {forgot
