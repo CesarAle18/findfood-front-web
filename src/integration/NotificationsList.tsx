@@ -6,7 +6,6 @@ import { textValue } from "./read-format";
 import { apiRequest, errorMessage } from "./http";
 import { useNotifications } from "./use-notifications";
 import { notificationTarget } from "./notification-target";
-import { IdFilter } from "./IdFilter";
 import { matchesId } from "./id-search";
 
 export function NotificationsList() {
@@ -14,7 +13,6 @@ export function NotificationsList() {
   const local = useActivity(user);
   const server = useNotifications();
   const [search, setSearch] = useState("");
-  const [idSearch, setIdSearch] = useState("");
   const [limit, setLimit] = useState(20);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
@@ -29,7 +27,7 @@ export function NotificationsList() {
     ...local.map((n) => ({ ...n, key: `local:${n.id}`, local: true })),
     ...remote,
   ].sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0));
-  const filtered = notices.filter((n) => matchesId(n, idSearch) && `${n.titulo} ${n.cuerpo}`.toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")));
+  const filtered = notices.filter((n) => matchesId(n, search) || `${n.titulo} ${n.cuerpo}`.toLocaleLowerCase("es").includes(search.trim().toLocaleLowerCase("es")));
   async function markRead(notice?: typeof notices[number]) {
     if (lock.current) return;
     if (notice?.local) { readActivity(user, notice.id); return; }
@@ -45,7 +43,6 @@ export function NotificationsList() {
   }
   return <Card className="notifications-card">
     <div className="notifications-toolbar">
-      <IdFilter value={idSearch} onChange={(value) => { setIdSearch(value); setLimit(20); }} />
       <label className="search"><Icon name="search" /><input aria-label="Buscar notificaciones" placeholder="Buscar notificaciones…" value={search} onChange={(e) => { setSearch(e.target.value); setLimit(20); }} /></label>
       <button className="button secondary" onClick={() => { server.refresh(); window.dispatchEvent(new Event("findfood:data-changed")); }}>Actualizar lista</button>
       <button className="button secondary" disabled={busy || !notices.some((n) => !n.leida_at)} onClick={() => void markRead()}>Marcar todas como leídas</button>

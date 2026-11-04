@@ -1,10 +1,9 @@
 ﻿import { useState } from "react";
-import { Card, Drawer } from "../components/ui";
+import { Card, Drawer, Icon } from "../components/ui";
 import type { AuditEntry } from "./audit";
 import { textValue } from "./read-format";
 import { AuditDetails } from "./AuditDetails";
-import { IdFilter } from "./IdFilter";
-import { matchesId } from "./id-search";
+import { isIdSearch, matchesId } from "./id-search";
 import { useRead } from "./read";
 import { loadGlobalAudit } from "./audit-read";
 import { auditAction, auditDescription, auditValues } from "./audit-presentation";
@@ -15,7 +14,7 @@ export function AuditLive() {
   const [role, setRole] = useState("");
   const [module, setModule] = useState("");
   const [action, setAction] = useState("");
-  const [idSearch, setIdSearch] = useState("");
+  const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [limit, setLimit] = useState(20);
@@ -25,7 +24,7 @@ export function AuditLive() {
   if (to) params.set("hasta", new Date(Date.parse(`${to}T00:00:00-05:00`) + 86400000).toISOString());
   const read = useRead<AuditEntry[]>(`/admin/auditoria?${params}`, 0, loadGlobalAudit);
   const entries = read.data ?? [];
-  const visible = entries.filter((entry) => matchesId({ ...entry, detalles: auditValues(entry.detalles) }, idSearch) && (!actor || entry.actor === actor) && (!role || entry.roles?.includes(role)) && (!module || entry.modulo === module) && (!action || auditAction(entry.accion) === action));
+  const visible = entries.filter((entry) => (matchesId({ ...entry, detalles: auditValues(entry.detalles) }, search) || (!isIdSearch(search) && [entry.actor, entry.modulo, auditAction(entry.accion), auditDescription(entry), ...(entry.roles ?? [])].some((value) => value.toLocaleLowerCase("es").includes(search.trim().toLocaleLowerCase("es"))))) && (!actor || entry.actor === actor) && (!role || entry.roles?.includes(role)) && (!module || entry.modulo === module) && (!action || auditAction(entry.accion) === action));
   function download() {
     const cell = (value: string) => `"${(/^[=+@\-\t\r]/.test(value) ? "'" : "") + value.replaceAll('"', '""')}"`;
     const csv = [["Fecha / Hora", "Actor", "Roles", "Módulo", "Acción", "Descripción"], ...visible.map((entry) => [textValue(entry.fecha), entry.actor, entry.roles?.join(", ") ?? "", entry.modulo, auditAction(entry.accion), auditDescription(entry)])].map((row) => row.map(cell).join(",")).join("\r\n");
@@ -35,7 +34,7 @@ export function AuditLive() {
   return <div className="form-stack">
     <div className="summary-grid">{[["Total de registros", visible.length], ["Usuarios únicos", new Set(visible.map((entry) => entry.actor)).size], ["Módulos auditados", new Set(visible.map((entry) => entry.modulo)).size], ["Eliminaciones y rechazos", visible.filter((entry) => ["Eliminar", "Rechazar"].includes(auditAction(entry.accion))).length]].map(([label, value]) => <Card key={label}><span className="muted">{label}</span><strong className="summary-value">{read.loading || read.error ? "—" : value}</strong></Card>)}</div>
     <Card><div className="audit-filters">
-      <IdFilter value={idSearch} onChange={(value) => { setIdSearch(value); setLimit(20); }} />
+      <label className="search"><Icon name="search" /><input aria-label="Buscar en reportes" placeholder="Buscar por texto o ID…" value={search} onChange={(event) => { setSearch(event.target.value); setLimit(20); }} /></label>
       <label>Desde<input type="date" value={from} max={to && to < today ? to : today} onChange={(event) => { setFrom(event.target.value); setLimit(20); }} /></label>
       <label>Hasta<input type="date" value={to} max={today} min={from || undefined} onChange={(event) => { setTo(event.target.value); setLimit(20); }} /></label>
       {([ ["Usuario", actor, setActor, entries.map((entry) => entry.actor)], ["Rol", role, setRole, entries.flatMap((entry) => entry.roles ?? [])], ["Módulo", module, setModule, entries.map((entry) => entry.modulo)], ["Acción", action, setAction, entries.map((entry) => auditAction(entry.accion))] ] as const).map(([label, value, setter, options]) => <label key={label}>{label}<select aria-label={label} value={value} onChange={(event) => { setter(event.target.value); setLimit(20); }}><option value="">Todos</option>{[...new Set(options)].sort().map((option) => <option key={option}>{option}</option>)}</select></label>)}

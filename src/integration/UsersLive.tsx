@@ -6,7 +6,6 @@ import { roleLabels, statusLabels } from "./contracts";
 import type { ApiUser, Page, Role, UserFilters, UserStatus } from "./contracts";
 import { useSession } from "./session-context";
 import { UserDrawer } from "./UserDrawer";
-import { IdFilter } from "./IdFilter";
 export function UsersLive() {
   const auth = useSession()!;
   const [filters, setFilters] = useState<UserFilters>({
@@ -63,12 +62,11 @@ export function UsersLive() {
     <>
       <Card className="table-card">
         <div className="toolbar">
-          <IdFilter value={filters.id ?? ""} onChange={(value) => update({ id: value })} />
           <label className="search">
             <Icon name="search" />
             <input
               aria-label="Buscar usuarios"
-              placeholder="Buscar por nombre o correo…"
+              placeholder="Buscar por nombre, correo o ID…"
               maxLength={100}
               value={filters.q}
               onChange={(e) => update({ q: e.target.value })}

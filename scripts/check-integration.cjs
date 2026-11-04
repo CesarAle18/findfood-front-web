@@ -711,10 +711,10 @@ const jwt = () =>
       await detail.getByRole("region", { name: "Valores nuevos", exact: true }).getByText("Vencido", { exact: true }).waitFor();
       assert(!(await detail.textContent()).includes('{"estado"'));
       await page.keyboard.press("Escape");
-      await page.getByRole("searchbox", { name: "Buscar por ID", exact: true }).fill(" L-2 ");
+      await page.getByRole("textbox", { name: "Buscar en reportes", exact: true }).fill(" L-2 ");
       assert.equal(await table.locator("tbody tr").count(), 1);
       await table.getByText("actualizar lote_inventario (L-2).", { exact: true }).waitFor();
-      await page.getByRole("searchbox", { name: "Buscar por ID", exact: true }).fill("");
+      await page.getByRole("textbox", { name: "Buscar en reportes", exact: true }).fill("");
       assert.equal(await table.getByRole("columnheader", { name: "Entidad", exact: true }).count(), 0);
       await table.getByRole("columnheader", { name: "Descripción", exact: true }).waitFor();
       await page.getByLabel("Rol", { exact: true }).selectOption("ASESOR_BANCO");
@@ -782,14 +782,17 @@ const jwt = () =>
       await page.getByText("Donaciones creadas", { exact: true }).waitFor();
       for (const path of ["/usuarios", "/donaciones", "/rutas", "/recepciones", "/almacenes", "/voluntarios", "/pendientes", "/alertas", "/inventario"]) {
         await page.goto(`${base}/#${path}`);
-        await page.getByRole("searchbox", { name: "Buscar por ID", exact: true }).fill(` ${target.toUpperCase()} `);
+        const name = path === "/usuarios" ? "Buscar usuarios" : path === "/inventario" ? "Buscar producto o lote" : "Buscar en esta página";
+        assert.equal(await page.locator(".toolbar .search input").count(), 1);
+        assert.equal(await page.getByRole("searchbox", { name: "Buscar por ID", exact: true }).count(), 0);
+        await page.getByRole("textbox", { name, exact: true }).fill(` ${target.toUpperCase()} `);
         await page.waitForFunction(() => {
           const rows = document.querySelectorAll(".table-card table tbody tr");
           return rows.length === 1 && /(?:120)/.test(rows[0].textContent);
         });
       }
       await page.goto(`${base}/#/inicio?panel=notificaciones`);
-      await page.getByRole("dialog").getByRole("searchbox", { name: "Buscar por ID", exact: true }).fill(target);
+      await page.getByRole("dialog").getByRole("textbox", { name: "Buscar notificaciones", exact: true }).fill(target);
       await page.getByRole("dialog").getByText("Aviso 120", { exact: true }).waitFor();
       assert.equal(await page.getByRole("dialog").locator(".activity-list > li").count(), 1);
     });
@@ -803,7 +806,7 @@ const jwt = () =>
       const table = page.locator(".table-card table");
       await table.getByText("DON-CANCELADA-VISIBLE", { exact: true }).waitFor();
       assert.equal(await table.getByText("Expirada", { exact: true }).count(), 0);
-      const idFilter = page.getByRole("searchbox", { name: "Buscar por ID", exact: true });
+      const idFilter = page.getByRole("textbox", { name: "Buscar en esta página", exact: true });
       await idFilter.fill(userId(50));
       await page.getByText("0 registros", { exact: true }).waitFor();
       await idFilter.fill("");
@@ -894,9 +897,11 @@ const jwt = () =>
       await page.getByText("No se encontraron alimentos con estos filtros.", { exact: true }).waitFor();
       assert(!state.requests.some((request) => request.path === "/v1/admin/tareas"));
       await page.getByRole("button", { name: "Limpiar filtros", exact: true }).click();
-      await page.getByRole("searchbox", { name: "Buscar por ID", exact: true }).fill("31");
+      await page.getByRole("textbox", { name: "Buscar alimento por código o nombre", exact: true }).fill("31");
       await page.getByText("1–1 de 1 registros", { exact: true }).waitFor();
       await table.getByText("Producto 30", { exact: true }).waitFor();
+      await page.getByRole("textbox", { name: "Buscar alimento por código o nombre", exact: true }).fill("mamoncillo");
+      await table.getByText("Mamoncillo", { exact: true }).waitFor();
     });
     await scenario("recepciones de ruta finalizada: selección estados y reintento", async ({ page, state, login }) => {
       state.roles = ["ASESOR_BANCO"];

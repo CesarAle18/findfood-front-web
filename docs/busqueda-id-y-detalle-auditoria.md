@@ -1,6 +1,6 @@
 # Búsqueda por ID y detalle de auditoría
 
-Los listados tienen un campo «ID» para pegar identificadores. La coincidencia es exacta, ignora espacios al inicio/final y diferencias entre mayúsculas y minúsculas, y acepta tanto identificadores numéricos como UUID. Se consideran los campos `id`, los terminados en `_id` y los identificadores de objetos relacionados disponibles en la respuesta. No busca coincidencias parciales dentro del nombre o la descripción.
+La barra de búsqueda existente de cada listado permite escribir texto o pegar un ID, sin añadir un campo separado. Un UUID o identificador numérico completo activa la búsqueda exacta por ID; ignora espacios al inicio/final y diferencias entre mayúsculas y minúsculas. Se consideran los campos `id`, los terminados en `_id` y los identificadores de objetos relacionados disponibles en la respuesta. El texto normal conserva la búsqueda por los datos habituales de cada módulo. En los listados ya cargados, también se comprueban otros identificadores completos.
 
 Está disponible en Usuarios, Donaciones, Rutas, Recepciones, Inventario, Almacenes, Voluntarios, Pendientes, Alertas, Alimentos, Notificaciones y Reportes, además de los listados del modo de demostración. Los paneles de resumen y formularios sin listados no tienen un buscador de registros.
 

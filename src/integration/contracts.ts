@@ -32,7 +32,6 @@ export interface Page<T> {
   desplazamiento: number;
 }
 export interface UserFilters {
-  id?: string;
   q: string;
   rol: string;
   estado: string;

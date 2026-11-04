@@ -1,3 +1,7 @@
+export function isIdSearch(query: string): boolean {
+  return /^(?:\d+|(?:[a-z][\w-]*:)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(query.trim());
+}
+
 export function matchesId(value: unknown, query: string): boolean {
   const expected = query.trim().toLocaleLowerCase("es");
   if (!expected) return true;

@@ -5,7 +5,7 @@ import { ActionButtons } from "./ActionForm";
 import { foodAction, type Action, type Row } from "./actions";
 import { loadFoodPage, type FoodPage } from "./food-read";
 import { textValue } from "./read-format";
-import { IdFilter } from "./IdFilter";
+import { isIdSearch } from "./id-search";
 import { loadIdPage } from "./record-read";
 
 const loadFoodById = (endpoint: string, signal: AbortSignal) => loadIdPage(endpoint, signal, loadFoodPage);
@@ -23,13 +23,13 @@ function statusAction(row: Row): Action {
 
 export function FoodSettings() {
   const [search, setSearch] = useState("");
-  const [idSearch, setIdSearch] = useState("");
+  const idSearch = isIdSearch(search) ? search.trim() : "";
   const [status, setStatus] = useState("");
   const [regime, setRegime] = useState("");
   const [limit, setLimit] = useState(20);
   const [offset, setOffset] = useState(0);
   const params = new URLSearchParams({ limite: String(limit), desplazamiento: String(offset) });
-  if (search.trim()) params.set("q", search.trim());
+  if (search.trim() && !idSearch) params.set("q", search.trim());
   if (status) params.set("estado", status);
   if (regime) params.set("tipo_almacenamiento", regime);
   if (idSearch.trim()) params.set("buscar_id", idSearch.trim());
@@ -42,13 +42,12 @@ export function FoodSettings() {
     <Card title="Tipos de alimento"><div className="form-stack">
       <p className="muted">Consulta, edita y reactiva los alimentos del catálogo.</p>
       <div className="toolbar food-filters">
-        <IdFilter value={idSearch} onChange={(value) => { setIdSearch(value); setOffset(0); }} />
-        <label className="search"><Icon name="search" /><input aria-label="Buscar alimento por código o nombre" placeholder="Buscar por código o nombre…" value={search} onChange={(event) => { setSearch(event.target.value); setOffset(0); }} /></label>
+        <label className="search"><Icon name="search" /><input aria-label="Buscar alimento por código o nombre" placeholder="Buscar por código, nombre o ID…" value={search} onChange={(event) => { setSearch(event.target.value); setOffset(0); }} /></label>
         <label>Estado<select aria-label="Estado del alimento" value={status} onChange={(event) => { setStatus(event.target.value); setOffset(0); }}><option value="">Todos</option><option value="ACTIVO">Activos</option><option value="INACTIVO">Inactivos</option></select></label>
         <label>Régimen<select aria-label="Régimen del alimento" value={regime} onChange={(event) => { setRegime(event.target.value); setOffset(0); }}><option value="">Todos</option><option value="SECO">Seco</option><option value="REFRIGERADO">Refrigerado</option></select></label>
         <label>Por página<select aria-label="Alimentos por página" value={limit} onChange={(event) => { setLimit(Number(event.target.value)); setOffset(0); }}>{[10, 20, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
       </div>
-      <div className="food-toolbar"><ActionButtons actions={[foodAction()]} onSaved={refresh} /><button className="button secondary" onClick={() => { setSearch(""); setIdSearch(""); setStatus(""); setRegime(""); setOffset(0); }}>Limpiar filtros</button><button className="button secondary" onClick={refresh}>Actualizar lista</button></div>
+      <div className="food-toolbar"><ActionButtons actions={[foodAction()]} onSaved={refresh} /><button className="button secondary" onClick={() => { setSearch(""); setStatus(""); setRegime(""); setOffset(0); }}>Limpiar filtros</button><button className="button secondary" onClick={refresh}>Actualizar lista</button></div>
     </div></Card>
     <Card className="table-card">
       {read.data?.activeOnly && <p className="inventory-expired" role="status">El servidor aún no permite consultar alimentos inactivos. Solo se muestran los activos; para consultar y reactivar los inactivos es necesario actualizar el servidor.</p>}

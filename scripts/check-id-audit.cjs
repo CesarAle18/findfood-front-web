@@ -11,6 +11,9 @@ function source(file, imports = {}) {
 }
 const ids = source("src/integration/id-search.ts");
 const audit = source("src/integration/audit-presentation.ts");
+assert(ids.isIdSearch(" 12345678-1234-4234-8234-123456789ABC "));
+assert(ids.isIdSearch("31"));
+assert(!ids.isIdSearch("Arroz"));
 assert(ids.matchesId({ id: "ABC-123" }, " abc-123 "));
 assert(ids.matchesId({ lote_id: "lot" }, "lot"));
 assert(ids.matchesId({ id: 14 }, "14"));

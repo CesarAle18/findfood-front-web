@@ -1,6 +1,7 @@
 ﻿import { ApiError, apiRequest } from "./http";
 import type { ApiUser, Kpis, Page, Profile, UserFilters } from "./contracts";
 import { loadIdPage } from "./record-read";
+import { isIdSearch } from "./id-search";
 export const profileService = {
   get: async (signal?: AbortSignal): Promise<Profile> => {
     let profile: Profile;
@@ -51,10 +52,11 @@ export const userService = {
   list: (filters: UserFilters, signal?: AbortSignal) => {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
-      if (key !== "id" && value !== "") params.set(key, String(value));
+      if (value !== "") params.set(key, String(value));
     });
-    if (filters.id?.trim()) {
-      params.set("buscar_id", filters.id.trim());
+    if (isIdSearch(filters.q)) {
+      params.delete("q");
+      params.set("buscar_id", filters.q.trim());
       return loadIdPage<ApiUser>(`/admin/usuarios?${params}`, signal ?? new AbortController().signal);
     }
     return apiRequest<Page<ApiUser>>(`/admin/usuarios?${params}`, { signal });

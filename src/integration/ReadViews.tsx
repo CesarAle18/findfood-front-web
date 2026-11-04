@@ -23,7 +23,7 @@ import { canAssignDonation, donationDetails, donationHistory, nonEmptyDetails } 
 import { inventoryState } from "./inventory-state";
 import { loadAdvisorDonations } from "./donation-read";
 import { loadIdPage } from "./record-read";
-import { IdFilter } from "./IdFilter";
+import { isIdSearch, matchesId } from "./id-search";
 
 type Row = Record<string, unknown>;
 type Column = [string, string];
@@ -166,7 +166,7 @@ function Records({ config }: { config: ListConfig }) {
   const create = createAction(mutationPath);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
-  const [idSearch, setIdSearch] = useState("");
+  const idSearch = isIdSearch(search) ? search.trim() : "";
   const [selected, setSelected] = useState<Row | null>(null);
   const endpoint =
     config.endpoint +
@@ -183,7 +183,7 @@ function Records({ config }: { config: ListConfig }) {
   const [dismissedId, setDismissedId] = useState<string | null>(null);
   const selection = selected ?? (requestedId && requestedId !== dismissedId ? requested.data ?? rows.find((row) => String(row[config.idField || "id"]) === requestedId) : null);
   const visible = rows.filter((row) =>
-    config.columns.some(([key]) =>
+    idSearch ? matchesId(row, idSearch) : matchesId(row, search) || config.columns.some(([key]) =>
       textValue(at(row, key))
         .toLocaleLowerCase("es")
         .includes(search.toLocaleLowerCase("es")),
@@ -245,14 +245,13 @@ function Records({ config }: { config: ListConfig }) {
       )}
       <Card className="table-card">
         <div className="toolbar">
-          <IdFilter value={idSearch} onChange={(value) => { setIdSearch(value); setOffset(0); setSelected(null); }} />
           <label className="search">
             <Icon name="search" />
             <input
               aria-label="Buscar en esta página"
-              placeholder="Buscar en esta página…"
+              placeholder="Buscar por texto o ID…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setOffset(0); setSelected(null); }}
             />
           </label>
           {config.title === "Lista de voluntarios" && (
