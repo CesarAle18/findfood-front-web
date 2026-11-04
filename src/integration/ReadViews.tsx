@@ -22,6 +22,8 @@ import { useActivity } from "./activity";
 import { canAssignDonation, donationDetails, donationHistory, nonEmptyDetails } from "./donation-display";
 import { inventoryState } from "./inventory-state";
 import { loadAdvisorDonations } from "./donation-read";
+import { loadIdPage } from "./record-read";
+import { IdFilter } from "./IdFilter";
 
 type Row = Record<string, unknown>;
 type Column = [string, string];
@@ -164,14 +166,15 @@ function Records({ config }: { config: ListConfig }) {
   const create = createAction(mutationPath);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
+  const [idSearch, setIdSearch] = useState("");
   const [selected, setSelected] = useState<Row | null>(null);
   const endpoint =
     config.endpoint +
     (config.paginated
       ? `${config.endpoint.includes("?") ? "&" : "?"}limite=20&desplazamiento=${offset}`
-      : "");
+      : "") + (idSearch.trim() ? `${config.endpoint.includes("?") || config.paginated ? "&" : "?"}buscar_id=${encodeURIComponent(idSearch.trim())}` : "");
   const advisorDonations = config.donation && auth.profile?.roles.includes("ASESOR_BANCO") && !auth.profile.roles.includes("ADMIN");
-  const read = useRead<Row[] | Page<Row>>(endpoint, ["/me/notificaciones", "/donaciones", "/rutas"].includes(path) ? 15000 : 0, advisorDonations ? loadAdvisorDonations : undefined);
+  const read = useRead<Row[] | Page<Row>>(endpoint, ["/me/notificaciones", "/donaciones", "/rutas"].includes(path) ? 15000 : 0, advisorDonations ? loadAdvisorDonations : idSearch.trim() ? loadIdPage : undefined);
   const data = read.data;
   const rows = (Array.isArray(data) ? data : data?.datos || []).filter((row) => path !== "/alertas" || !row.atendida_at);
   const total = Array.isArray(data) ? rows.length : data?.total || 0;
@@ -242,6 +245,7 @@ function Records({ config }: { config: ListConfig }) {
       )}
       <Card className="table-card">
         <div className="toolbar">
+          <IdFilter value={idSearch} onChange={(value) => { setIdSearch(value); setOffset(0); setSelected(null); }} />
           <label className="search">
             <Icon name="search" />
             <input

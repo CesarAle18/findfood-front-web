@@ -1,0 +1,138 @@
+diff --git a/src/modulos/admin/admin.controller.ts b/src/modulos/admin/admin.controller.ts
+index cb83712..9ce0d9d 100644
+--- a/src/modulos/admin/admin.controller.ts
++++ b/src/modulos/admin/admin.controller.ts
+@@ -26,6 +26,7 @@ import {
+   CambiarEstadoUsuarioDto,
+   FiltroCatalogosDto,
+   ListarUsuariosDto,
++  ListarTiposAlimentoDto,
+   ListarVerificacionesDto,
+   RechazarVerificacionDto,
+   SuspenderDto,
+@@ -170,6 +171,11 @@ export class AdminController {
+     return this.catalogos.guardarBanco(dto, admin.id, peticion);
+   }
+ 
++  @Get('tipos-alimento')
++  listarTiposAlimento(@Query() filtro: ListarTiposAlimentoDto) {
++    return this.catalogos.listarTiposAlimento(filtro);
++  }
++
+   @Post('tipos-alimento')
+   crearTipoAlimento(
+     @UsuarioActual() admin: UsuarioAutenticado,
+diff --git a/src/modulos/admin/admin.dto.ts b/src/modulos/admin/admin.dto.ts
+index 55d6e1c..9696ef3 100644
+--- a/src/modulos/admin/admin.dto.ts
++++ b/src/modulos/admin/admin.dto.ts
+@@ -186,6 +186,12 @@ export class TipoAlimentoDto {
+   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) vida_util_dias?: number;
+ }
+ 
++export class ListarTiposAlimentoDto extends PaginacionDto {
++  @ApiPropertyOptional() @IsOptional() @Transform(recortar) @IsString() @MaxLength(100) q?: string;
++  @ApiPropertyOptional({ enum: ['ACTIVO', 'INACTIVO'] }) @IsOptional() @IsIn(['ACTIVO', 'INACTIVO']) estado?: 'ACTIVO' | 'INACTIVO';
++  @ApiPropertyOptional({ enum: tipo_almacenamiento }) @IsOptional() @IsIn(Object.values(tipo_almacenamiento)) tipo_almacenamiento?: tipo_almacenamiento;
++}
++
+ export class ActualizarTipoAlimentoDto {
+   @ApiPropertyOptional()
+   @IsOptional()
+diff --git a/src/modulos/admin/alimentos-admin.spec.ts b/src/modulos/admin/alimentos-admin.spec.ts
+new file mode 100644
+index 0000000..10cbaa5
+--- /dev/null
++++ b/src/modulos/admin/alimentos-admin.spec.ts
+@@ -0,0 +1,56 @@
++import 'reflect-metadata';
++import { plainToInstance } from 'class-transformer';
++import { validate } from 'class-validator';
++import { Reflector } from '@nestjs/core';
++import type { ExecutionContext } from '@nestjs/common';
++import { RolesGuard } from '../../comun/auth/roles.guard';
++import type { PrismaService } from '../../comun/prisma/prisma.service';
++import type { TrazabilidadService } from '../../comun/trazabilidad/trazabilidad.service';
++import { AdminController } from './admin.controller';
++import { CatalogosService } from './catalogos.service';
++import { ListarTiposAlimentoDto } from './admin.dto';
++
++function setup() {
++  const rows = [{ id: 1, nombre: 'Mamoncillo', codigo: 'MAMONCILLO', activo: false }];
++  const foods = { findMany: jest.fn().mockResolvedValue(rows), count: jest.fn().mockResolvedValue(1), findUnique: jest.fn().mockResolvedValue(rows[0]), update: jest.fn().mockResolvedValue({ ...rows[0], activo: true }) };
++  const audit = jest.fn().mockResolvedValue(undefined);
++  const prisma = { tipo_alimento: foods, $transaction: (queries: Promise<unknown>[]) => Promise.all(queries), transaccion: (callback: (tx: unknown) => unknown) => callback({ tipo_alimento: foods }) };
++  const service = new CatalogosService(prisma as unknown as PrismaService, { auditar: audit } as unknown as TrazabilidadService);
++  return { service, foods, audit };
++}
++describe('administración de alimentos', () => {
++  it('incluye inactivos en el listado administrativo y pagina en el servidor', async () => {
++    const { service, foods } = setup();
++    const result = await service.listarTiposAlimento(plainToInstance(ListarTiposAlimentoDto, { limite: 10, desplazamiento: 20 }));
++    expect(result.datos[0].activo).toBe(false);
++    expect(foods.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {}, take: 10, skip: 20, select: expect.objectContaining({ activo: true }) }));
++    expect(result.total).toBe(1);
++  });
++  it('combina búsqueda, estado y régimen antes de paginar', async () => {
++    const { service, foods } = setup();
++    await service.listarTiposAlimento(plainToInstance(ListarTiposAlimentoDto, { q: '  mamon  ', estado: 'INACTIVO', tipo_almacenamiento: 'SECO' }));
++    const query = foods.findMany.mock.calls[0][0];
++    expect(query.where).toEqual({ activo: false, tipo_almacenamiento: 'SECO', OR: [{ nombre: { contains: 'mamon', mode: 'insensitive' } }, { codigo: { contains: 'mamon', mode: 'insensitive' } }] });
++    expect(foods.count).toHaveBeenCalledWith({ where: query.where });
++  });
++  it('reactiva el registro existente y deja auditoría', async () => {
++    const { service, foods, audit } = setup();
++    const result = await service.actualizarTipoAlimento(1, { activo: true }, 'admin');
++    expect(result.id).toBe(1);
++    expect(foods.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { activo: true } });
++    expect(audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ anteriores: expect.objectContaining({ activo: false }), nuevos: { activo: true } }));
++  });
++  it('el catálogo de formularios sigue excluyendo alimentos inactivos', async () => {
++    const { service, foods } = setup();
++    await service.consultar({ incluir: ['tipos_alimento'] });
++    expect(foods.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { activo: true } }));
++  });
++  it('valida filtros y límites', async () => {
++    expect(await validate(plainToInstance(ListarTiposAlimentoDto, { limite: 20, estado: 'INACTIVO' }))).toHaveLength(0);
++    expect((await validate(plainToInstance(ListarTiposAlimentoDto, { limite: 500, estado: 'OTRO', tipo_almacenamiento: 'OTRO' }))).length).toBeGreaterThan(0);
++  });
++  it.each(['ASESOR_BANCO', 'DONANTE', 'VOLUNTARIO'])('no expone la administración de inactivos al rol %s', (role) => {
++    const context = { getClass: () => AdminController, getHandler: () => () => undefined, switchToHttp: () => ({ getRequest: () => ({ usuario: { roles: [role] } }) }) } as unknown as ExecutionContext;
++    expect(() => new RolesGuard(new Reflector()).canActivate(context)).toThrow();
++  });
++});
+diff --git a/src/modulos/admin/catalogos.service.ts b/src/modulos/admin/catalogos.service.ts
+index 624941e..6bce33c 100644
+--- a/src/modulos/admin/catalogos.service.ts
++++ b/src/modulos/admin/catalogos.service.ts
+@@ -15,6 +15,7 @@ import {
+   type Catalogo,
+   CATALOGOS,
+   type FiltroCatalogosDto,
++  type ListarTiposAlimentoDto,
+   type TipoAlimentoDto,
+ } from './admin.dto';
+ 
+@@ -135,6 +136,22 @@ export class CatalogosService {
+     return Object.fromEntries(pedidos.map((c, i) => [c, resultados[i]]));
+   }
+ 
++  async listarTiposAlimento(filtro: ListarTiposAlimentoDto) {
++    const where = {
++      ...(filtro.estado ? { activo: filtro.estado === 'ACTIVO' } : {}),
++      ...(filtro.tipo_almacenamiento ? { tipo_almacenamiento: filtro.tipo_almacenamiento } : {}),
++      ...(filtro.q ? { OR: [{ nombre: { contains: filtro.q, mode: 'insensitive' as const } }, { codigo: { contains: filtro.q, mode: 'insensitive' as const } }] } : {}),
++    };
++    const [datos, total] = await this.prisma.$transaction([
++      this.prisma.tipo_alimento.findMany({ where, orderBy: [{ nombre: 'asc' }, { id: 'asc' }], take: filtro.limite, skip: filtro.desplazamiento, select: {
++        id: true, codigo: true, nombre: true, categoria_alimento_id: true, unidad_medida_id: true,
++        requiere_refrigeracion: true, tipo_almacenamiento: true, perecedero: true, vida_util_dias: true, activo: true,
++      } }),
++      this.prisma.tipo_alimento.count({ where }),
++    ]);
++    return { datos, total, limite: filtro.limite, desplazamiento: filtro.desplazamiento };
++  }
++
+   async crearTipoAlimento(
+     dto: TipoAlimentoDto,
+     usuarioId: string,

@@ -1,4 +1,4 @@
-﻿const checkApiContract = require("./api-contract-check.cjs");
+const checkApiContract = require("./api-contract-check.cjs");
 // Pruebas de navegador con Supabase y API simulados. No toca cuentas reales.
 // Requiere Playwright y Chromium; ver docs/conexion-web.md.
 const assert = require("node:assert/strict");
@@ -708,8 +708,13 @@ const jwt = () =>
       await table.locator("tbody tr").first().getByRole("button", { name: "Ver", exact: true }).click();
       const detail = page.getByRole("dialog");
       await detail.getByText('actualizar lote_inventario (L-0).', { exact: true }).waitFor();
-      await detail.getByText('{"estado":"VENCIDO"}', { exact: true }).waitFor();
+      await detail.getByRole("region", { name: "Valores nuevos", exact: true }).getByText("Vencido", { exact: true }).waitFor();
+      assert(!(await detail.textContent()).includes('{"estado"'));
       await page.keyboard.press("Escape");
+      await page.getByRole("searchbox", { name: "Buscar por ID", exact: true }).fill(" L-2 ");
+      assert.equal(await table.locator("tbody tr").count(), 1);
+      await table.getByText("actualizar lote_inventario (L-2).", { exact: true }).waitFor();
+      await page.getByRole("searchbox", { name: "Buscar por ID", exact: true }).fill("");
       assert.equal(await table.getByRole("columnheader", { name: "Entidad", exact: true }).count(), 0);
       await table.getByRole("columnheader", { name: "Descripción", exact: true }).waitFor();
       await page.getByLabel("Rol", { exact: true }).selectOption("ASESOR_BANCO");
@@ -760,6 +765,34 @@ const jwt = () =>
       assert(created);
       assert.deepEqual(created.body.ubicacion, { lat: 4.66, lng: -74.06 });
     });
+    await scenario("ID global: buscar registros fuera de la página visible", async ({ page, state, login }) => {
+      const paths = ["/admin/usuarios", "/donaciones", "/rutas", "/recepciones", "/almacenes", "/admin/verificaciones", "/alertas", "/inventario/lotes", "/me/notificaciones"];
+      const target = userId(620);
+      await page.route(`${api}/v1/**`, async (route) => {
+        const url = new URL(route.request().url());
+        const path = url.pathname.replace(/^\/v1/, "");
+        if (route.request().method() !== "GET" || !paths.includes(path)) return route.fallback();
+        assert(!url.searchParams.has("buscar_id"));
+        const records = Array.from({ length: 121 }, (_, index) => ({ id: userId(500 + index), lote_id: userId(500 + index), codigo: `COD-${index}`, codigo_lote: `LOTE-${index}`, nombre: `Nombre ${index}`, nombres: `Persona ${index}`, apellidos: "Prueba", email: `persona${index}@example.test`, telefono: "+573104445566", roles: ["VOLUNTARIO"], estado: path === "/admin/verificaciones" ? "PENDIENTE" : path === "/admin/usuarios" ? "ACTIVO" : path === "/rutas" ? "PLANIFICADA" : path === "/recepciones" ? "ACEPTADA" : path === "/inventario/lotes" ? "DISPONIBLE" : "PUBLICADA", capacidad_kg: 100, kg_en_inventario: 10, activo: true, tipo: "SECO", direccion: "Calle 1", titulo: `Aviso ${index}`, donacion: { codigo: `DON-${index}` }, cuerpo: "Detalle", created_at: "2026-01-01T10:00:00Z", leida_at: null, tipo_alimento: "Arroz", cantidad_disponible: 10, peso_disponible_kg: 10, unidad: "KG", almacen: "Central", nivel: "ALTA", mensaje: `Alerta ${index}`, usuario: { nombres: `Persona ${index}` }, voluntario: { tipo_vehiculo: { nombre: "Automóvil" } } }));
+        if (["/almacenes", "/alertas"].includes(path)) return route.fulfill({ json: records });
+        const offset = Number(url.searchParams.get("desplazamiento") || 0), limit = Number(url.searchParams.get("limite") || 20);
+        return route.fulfill({ json: { datos: records.slice(offset, offset + limit), total: records.length, limite: limit, desplazamiento: offset, no_leidas: records.length } });
+      });
+      await login(true);
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      for (const path of ["/usuarios", "/donaciones", "/rutas", "/recepciones", "/almacenes", "/voluntarios", "/pendientes", "/alertas", "/inventario"]) {
+        await page.goto(`${base}/#${path}`);
+        await page.getByRole("searchbox", { name: "Buscar por ID", exact: true }).fill(` ${target.toUpperCase()} `);
+        await page.waitForFunction(() => {
+          const rows = document.querySelectorAll(".table-card table tbody tr");
+          return rows.length === 1 && /(?:120)/.test(rows[0].textContent);
+        });
+      }
+      await page.goto(`${base}/#/inicio?panel=notificaciones`);
+      await page.getByRole("dialog").getByRole("searchbox", { name: "Buscar por ID", exact: true }).fill(target);
+      await page.getByRole("dialog").getByText("Aviso 120", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("dialog").locator(".activity-list > li").count(), 1);
+    });
     await scenario("donaciones asesor: ocultar expiradas y conservar canceladas", async ({ page, state, login }) => {
       state.roles = ["ASESOR_BANCO"];
       state.activityRows = { "/v1/donaciones": Array.from({ length: 121 }, (_, index) => ({ id: userId(index + 50), codigo: index === 100 ? "DON-CANCELADA-VISIBLE" : `DON-${index}`, estado: index < 100 ? "EXPIRADA" : index === 100 ? "CANCELADA" : "PUBLICADA", peso_estimado_kg: 10 })) };
@@ -770,12 +803,43 @@ const jwt = () =>
       const table = page.locator(".table-card table");
       await table.getByText("DON-CANCELADA-VISIBLE", { exact: true }).waitFor();
       assert.equal(await table.getByText("Expirada", { exact: true }).count(), 0);
+      const idFilter = page.getByRole("searchbox", { name: "Buscar por ID", exact: true });
+      await idFilter.fill(userId(50));
+      await page.getByText("0 registros", { exact: true }).waitFor();
+      await idFilter.fill("");
+      await page.getByText("1–20 de 21 registros", { exact: true }).waitFor();
       await page.getByRole("button", { name: "Siguiente", exact: true }).click();
       await page.getByText("21–21 de 21 registros", { exact: true }).waitFor();
       assert.equal(await table.locator("tbody tr").count(), 1);
       state.roles = ["ADMIN"];
       await page.reload();
       await table.getByText("Expirada", { exact: true }).first().waitFor();
+    });
+    await scenario("compatibilidad alimentos: servidor sin consulta administrativa", async ({ page, state, login }) => {
+      let status = 404;
+      let catalogRequests = 0;
+      const activeFoods = Array.from({ length: 25 }, (_, index) => ({ id: index + 1, codigo: `COD_${index}`, nombre: `Alimento ${index}`, tipo_almacenamiento: index % 2 ? "REFRIGERADO" : "SECO", vida_util_dias: 30 }));
+      await page.route(`${api}/v1/admin/tipos-alimento?*`, (route) => route.fulfill({ status, json: { status, title: status === 404 ? "Cannot GET /v1/admin/tipos-alimento" : "No tienes permiso para consultar alimentos" } }));
+      await page.route(`${api}/v1/catalogos?incluir=tipos_alimento`, (route) => { catalogRequests++; return route.fulfill({ json: { tipos_alimento: activeFoods } }); });
+      await login(true);
+      await page.getByText("Donaciones creadas", { exact: true }).waitFor();
+      await page.goto(`${base}/#/configuracion`);
+      await page.getByRole("button", { name: "Alimentos", exact: true }).click();
+      await page.getByText(/El servidor aún no permite consultar alimentos inactivos/).waitFor();
+      await page.getByText("1–20 de 25 registros", { exact: true }).waitFor();
+      const table = page.getByRole("table", { name: "Tipos de alimento", exact: true });
+      assert.equal(await table.getByText("Activo", { exact: true }).count(), 20);
+      assert.equal(await page.getByText(/Cannot GET/).count(), 0);
+      await page.getByRole("button", { name: "Siguiente", exact: true }).click();
+      await page.getByText("21–25 de 25 registros", { exact: true }).waitFor();
+      await page.getByLabel("Estado del alimento", { exact: true }).selectOption("INACTIVO");
+      await table.getByText("La consulta de alimentos inactivos estará disponible cuando se actualice el servidor.", { exact: true }).waitFor();
+      assert.equal(await table.getByRole("button", { name: "Reactivar alimento", exact: true }).count(), 0);
+      status = 403;
+      const requestsBefore = catalogRequests;
+      await page.getByRole("button", { name: "Actualizar lista", exact: true }).click();
+      await page.getByRole("alert").filter({ hasText: "No tienes permiso para consultar alimentos" }).waitFor();
+      assert.equal(catalogRequests, requestsBefore);
     });
     await scenario("configuración alimentos: filtros, paginación y reactivación", async ({ page, state, login }) => {
       const foods = Array.from({ length: 31 }, (_, index) => ({ id: index + 1, codigo: index === 0 ? "MAMONCILLO" : `ALIMENTO_${index}`, nombre: index === 0 ? "Mamoncillo" : `Producto ${String(index).padStart(2, "0")}`, activo: index !== 0, tipo_almacenamiento: index % 2 ? "REFRIGERADO" : "SECO", requiere_refrigeracion: index % 2 === 1, perecedero: true, vida_util_dias: 30 }));
@@ -829,6 +893,10 @@ const jwt = () =>
       await page.getByLabel("Régimen del alimento", { exact: true }).selectOption("REFRIGERADO");
       await page.getByText("No se encontraron alimentos con estos filtros.", { exact: true }).waitFor();
       assert(!state.requests.some((request) => request.path === "/v1/admin/tareas"));
+      await page.getByRole("button", { name: "Limpiar filtros", exact: true }).click();
+      await page.getByRole("searchbox", { name: "Buscar por ID", exact: true }).fill("31");
+      await page.getByText("1–1 de 1 registros", { exact: true }).waitFor();
+      await table.getByText("Producto 30", { exact: true }).waitFor();
     });
     await scenario("recepciones de ruta finalizada: selección estados y reintento", async ({ page, state, login }) => {
       state.roles = ["ASESOR_BANCO"];

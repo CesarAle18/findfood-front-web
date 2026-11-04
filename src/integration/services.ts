@@ -1,5 +1,6 @@
 ﻿import { ApiError, apiRequest } from "./http";
 import type { ApiUser, Kpis, Page, Profile, UserFilters } from "./contracts";
+import { loadIdPage } from "./record-read";
 export const profileService = {
   get: async (signal?: AbortSignal): Promise<Profile> => {
     let profile: Profile;
@@ -50,8 +51,12 @@ export const userService = {
   list: (filters: UserFilters, signal?: AbortSignal) => {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
-      if (value !== "") params.set(key, String(value));
+      if (key !== "id" && value !== "") params.set(key, String(value));
     });
+    if (filters.id?.trim()) {
+      params.set("buscar_id", filters.id.trim());
+      return loadIdPage<ApiUser>(`/admin/usuarios?${params}`, signal ?? new AbortController().signal);
+    }
     return apiRequest<Page<ApiUser>>(`/admin/usuarios?${params}`, { signal });
   },
 };

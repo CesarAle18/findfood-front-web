@@ -1,4 +1,4 @@
-﻿import { useRead } from "./read";
+import { useRead } from "./read";
 import { useEffect, useState } from "react";
 import { Badge, Card, Drawer, Icon } from "../components/ui";
 import { apiRequest, errorMessage } from "./http";
@@ -9,6 +9,8 @@ import { ActionButtons } from "./ActionForm";
 import { DetailBody } from "./ReadViews";
 import { fieldValue, textValue } from "./read-format";
 import { available, expiry, inventoryState } from "./inventory-state";
+import { IdFilter } from "./IdFilter";
+import { matchesId } from "./id-search";
 function refrigerated(row: Row) {
   return row.requiere_refrigeracion === true || row.regimen === "REFRIGERADO" || row.tipo_almacenamiento === "REFRIGERADO";
 }
@@ -18,6 +20,7 @@ export function InventoryLive() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 60000); return () => window.clearInterval(timer); }, []);
   const [search, setSearch] = useState("");
+  const [idSearch, setIdSearch] = useState("");
   const [warehouse, setWarehouse] = useState("");
   const [food, setFood] = useState("");
   const warehouses = useRead<Row[]>("/almacenes");
@@ -66,13 +69,13 @@ export function InventoryLive() {
   const soon = stock.filter((r) => expiry(r) >= now && expiry(r) - now <= 86400000).length;
   const expired = rows.filter((r) => expiry(r) < now && Number(r.cantidad_disponible ?? r.peso_disponible_kg) > 0).length;
   const weights = stock.map((r) => r.peso_disponible_kg == null || r.peso_disponible_kg === "" ? NaN : Number(r.peso_disponible_kg));
-  const filtered = rows.filter((r) => (!search || [r.codigo_lote, r.tipo_alimento, r.almacen].some((v) => textValue(v).toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")))) && (!onlyAvailable || available(r)) && (!regime || (regime === "REFRIGERADO" ? refrigerated(r) : r.requiere_refrigeracion === false || r.regimen === "SECO" || r.tipo_almacenamiento === "SECO")));
+  const filtered = rows.filter((r) => matchesId(r, idSearch) && (!search || [r.codigo_lote, r.tipo_alimento, r.almacen].some((v) => textValue(v).toLocaleLowerCase("es").includes(search.toLocaleLowerCase("es")))) && (!onlyAvailable || available(r)) && (!regime || (regime === "REFRIGERADO" ? refrigerated(r) : r.requiere_refrigeracion === false || r.regimen === "SECO" || r.tipo_almacenamiento === "SECO")));
   const visible = filtered.slice(offset, offset + 20);
   const summary = [["Lotes disponibles", stock.length, "green"], ["Vencen en ≤ 24 h", soon, "red"], ["Refrigerados", stock.filter(refrigerated).length, "blue"], ["Peso disponible", weights.every(Number.isFinite) ? `${textValue(weights.reduce((a, b) => a + b, 0))} kg` : "No disponible", "amber"]];
   const loaded = Boolean(result.rows);
   return <div className="form-stack">
     <div className="summary-grid">{summary.map(([label, value, color]) => <Card key={label}><div className="summary-label"><span className="muted">{label}</span><span className={`summary-dot ${color}`} /></div><strong className="summary-value">{loaded ? value : "—"}</strong>{label === "Vencen en ≤ 24 h" && <span className="summary-chip">Atención prioritaria</span>}</Card>)}</div>
-    <Card><div className="toolbar inventory-filters"><label className="search"><Icon name="search" /><input aria-label="Buscar producto o lote" placeholder="Buscar producto o lote…" value={search} onChange={(e) => { setSearch(e.target.value); setOffset(0); }} /></label><label>Sede <select aria-label="Filtrar inventario por sede" value={warehouse} onChange={(e) => { setWarehouse(e.target.value); setResult({}); setOffset(0); }}><option value="">Todas</option>{warehouses.data?.map((w) => <option key={String(w.id)} value={String(w.id)}>{textValue(w.nombre)}</option>)}</select></label><label>Tipo de alimento <select aria-label="Filtrar inventario por tipo" value={food} onChange={(e) => { setFood(e.target.value); setResult({}); setOffset(0); }}><option value="">Todos</option>{catalog.data?.tipos_alimento.map((t) => <option key={String(t.id)} value={String(t.id)}>{textValue(t.nombre)}</option>)}</select></label><label>Régimen <select value={regime} onChange={(e) => { setRegime(e.target.value); setOffset(0); }}><option value="">Todos</option><option value="SECO">Seco</option><option value="REFRIGERADO">Refrigerado</option></select></label><label className="inventory-availability"><input type="checkbox" checked={onlyAvailable} onChange={(e) => { setOnlyAvailable(e.target.checked); setOffset(0); }} />Solo disponibles</label><span className="summary-chip">Orden: FEFO</span><button className="button secondary" onClick={refresh}>Actualizar lista</button><a className="table-action" href="#/alertas">Alertas de inventario</a></div></Card>
+    <Card><div className="toolbar inventory-filters"><IdFilter value={idSearch} onChange={(value) => { setIdSearch(value); setOffset(0); }} /><label className="search"><Icon name="search" /><input aria-label="Buscar producto o lote" placeholder="Buscar producto o lote…" value={search} onChange={(e) => { setSearch(e.target.value); setOffset(0); }} /></label><label>Sede <select aria-label="Filtrar inventario por sede" value={warehouse} onChange={(e) => { setWarehouse(e.target.value); setResult({}); setOffset(0); }}><option value="">Todas</option>{warehouses.data?.map((w) => <option key={String(w.id)} value={String(w.id)}>{textValue(w.nombre)}</option>)}</select></label><label>Tipo de alimento <select aria-label="Filtrar inventario por tipo" value={food} onChange={(e) => { setFood(e.target.value); setResult({}); setOffset(0); }}><option value="">Todos</option>{catalog.data?.tipos_alimento.map((t) => <option key={String(t.id)} value={String(t.id)}>{textValue(t.nombre)}</option>)}</select></label><label>Régimen <select value={regime} onChange={(e) => { setRegime(e.target.value); setOffset(0); }}><option value="">Todos</option><option value="SECO">Seco</option><option value="REFRIGERADO">Refrigerado</option></select></label><label className="inventory-availability"><input type="checkbox" checked={onlyAvailable} onChange={(e) => { setOnlyAvailable(e.target.checked); setOffset(0); }} />Solo disponibles</label><span className="summary-chip">Orden: FEFO</span><button className="button secondary" onClick={refresh}>Actualizar lista</button><a className="table-action" href="#/alertas">Alertas de inventario</a></div></Card>
     {(warehouses.error || catalog.error) && <p role="alert">No se pudieron cargar todas las opciones de filtro. <button className="table-action" onClick={() => { warehouses.refresh(); catalog.refresh(); }}>Reintentar filtros</button></p>}
     <Card className="table-card">{result.error ? <div className="integration-state"><p role="alert">{result.error}</p><button className="button" onClick={refresh}>Reintentar</button></div> : !loaded ? <p className="integration-state" role="status">Cargando inventario…</p> : <>
       {expired > 0 && <p className="inventory-expired" role="status">{expired} lotes con fecha de vencimiento superada.</p>}

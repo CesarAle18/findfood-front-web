@@ -17,3 +17,21 @@ export function auditDescription(entry: AuditEntry): string {
   const reference = details.codigo ?? details.nombre ?? details.id ?? parts.find((part) => /^[0-9a-f]{8}-/i.test(part));
   return `${auditAction(entry.accion)} ${subject}${reference ? ` (${reference})` : ""}${details.estado ? `. Resultado: ${details.estado.toLocaleLowerCase("es").replaceAll("_", " ")}` : ""}${details.donacion_id ? `. Donación: ${details.donacion_id}` : ""}.`;
 }
+
+export function auditValues(value: unknown, key = "", depth = 0): unknown {
+  if (depth > 15) return "Información demasiado extensa para mostrar.";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (["true", "false"].includes(trimmed) && ["activo", "perecedero", "requiere_refrigeracion", "tiene_flota_propia"].includes(key)) return trimmed === "true";
+    if (trimmed === "null") return null;
+    if (trimmed.startsWith("{") || trimmed.startsWith("[") || trimmed.startsWith('"')) {
+      try { return auditValues(JSON.parse(trimmed), key, depth + 1); }
+      catch { return "No fue posible interpretar los valores registrados."; }
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map((item) => auditValues(item, key, depth + 1));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([field, item]) => [field, auditValues(item, field, depth + 1)]));
+  return value;
+}
+

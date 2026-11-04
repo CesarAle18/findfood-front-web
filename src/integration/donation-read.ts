@@ -1,10 +1,13 @@
 import type { Row } from "./actions";
 import type { Page } from "./contracts";
 import { apiRequest } from "./http";
+import { matchesId } from "./id-search";
 
 // Filtra antes de paginar para que no queden páginas vacías ni totales de expiradas.
 export async function loadAdvisorDonations(endpoint: string, signal: AbortSignal): Promise<Page<Row>> {
   const url = new URL(endpoint, "https://local.invalid");
+  const idSearch = url.searchParams.get("buscar_id") ?? "";
+  url.searchParams.delete("buscar_id");
   const limit = Number(url.searchParams.get("limite")) || 20;
   const offset = Number(url.searchParams.get("desplazamiento")) || 0;
   const rows: Row[] = [];
@@ -21,7 +24,7 @@ export async function loadAdvisorDonations(endpoint: string, signal: AbortSignal
       const id = String(row.id);
       if (seen.has(id)) continue;
       seen.add(id); added++;
-      if (row.estado !== "EXPIRADA") rows.push(row);
+      if (row.estado !== "EXPIRADA" && matchesId(row, idSearch)) rows.push(row);
     }
     start += batch.length;
     if (Array.isArray(result) || start >= result.total) break;

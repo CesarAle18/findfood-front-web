@@ -3,6 +3,8 @@ import type { ModuleKey, Entity } from "../domain/models";
 import { modules } from "../data/modules";
 import { useData } from "../state/data-context";
 import { href } from "../state/navigation";
+import { IdFilter } from "../integration/IdFilter";
+import { matchesId } from "../integration/id-search";
 import {
   Badge,
   Card,
@@ -23,10 +25,12 @@ export function Management({ module }: { module: ModuleKey }) {
   const config = modules[module];
   const rows = entities[module];
   const [query, setQuery] = useState("");
+  const [idSearch, setIdSearch] = useState("");
   const [filter, setFilter] = useState("");
   const [second, setSecond] = useState("");
   const visible = rows.filter(
     (row) =>
+      matchesId(row, idSearch) &&
       Object.values(row)
         .join(" ")
         .toLocaleLowerCase("es")
@@ -82,6 +86,7 @@ export function Management({ module }: { module: ModuleKey }) {
       )}
       <Card className="table-card">
         <div className="toolbar">
+          <IdFilter value={idSearch} onChange={setIdSearch} />
           <label className="search">
             <Icon name="search" />
             <input
