@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { apiRequest, errorMessage } from "./http";
 import type { Row } from "./actions";
+import { useSession } from "./session-context";
+import { useDeletedNotifications } from "./notification-deletion";
 
 // Fetch every page so local and remote notices share one chronological list.
 export function useNotifications() {
+  const user = useSession()?.session?.user.id ?? "";
+  const deleted = useDeletedNotifications(user);
   const [data, setData] = useState<Row[] | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -44,6 +48,6 @@ export function useNotifications() {
       window.removeEventListener("findfood:data-changed", refreshVisible);
       document.removeEventListener("visibilitychange", refreshVisible);
     };
-  }, [attempt]);
-  return { data, error, loading: data === null && !error, refresh: () => setAttempt((n) => n + 1) };
+  }, [attempt, user]);
+  return { data: data?.filter((notice) => !deleted.has(`server:${notice.id}`)) ?? null, error, loading: data === null && !error, refresh: () => setAttempt((n) => n + 1) };
 }

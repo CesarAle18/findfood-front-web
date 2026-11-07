@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Card, Icon } from "../components/ui";
+import { Card } from "../components/ui";
 import { useSession } from "./session-context";
 import { readActivity, useActivity } from "./activity";
 import { textValue } from "./read-format";
@@ -7,6 +7,7 @@ import { apiRequest, errorMessage } from "./http";
 import { useNotifications } from "./use-notifications";
 import { notificationTarget } from "./notification-target";
 import { matchesId } from "./id-search";
+import { deleteNotifications } from "./notification-deletion";
 
 export function NotificationsList() {
   const user = useSession()?.session?.user.id ?? "";
@@ -43,9 +44,10 @@ export function NotificationsList() {
   }
   return <Card className="notifications-card">
     <div className="notifications-toolbar">
-      <label className="search"><Icon name="search" /><input aria-label="Buscar notificaciones" placeholder="Buscar notificaciones…" value={search} onChange={(e) => { setSearch(e.target.value); setLimit(20); }} /></label>
+      <label className="search"><input aria-label="Buscar notificaciones" placeholder="Buscar notificaciones…" value={search} onChange={(e) => { setSearch(e.target.value); setLimit(20); }} /></label>
       <button className="button secondary" onClick={() => { server.refresh(); window.dispatchEvent(new Event("findfood:data-changed")); }}>Actualizar lista</button>
       <button className="button secondary" disabled={busy || !notices.some((n) => !n.leida_at)} onClick={() => void markRead()}>Marcar todas como leídas</button>
+      <button className="button secondary" disabled={busy || !notices.some((n) => n.leida_at)} onClick={() => deleteNotifications(user, notices.filter((n) => n.leida_at).map((n) => n.key))}>Eliminar leídas</button>
     </div>
     {error && <p role="alert" className="integration-error">{error}</p>}
     {server.error && <p role="alert" className="integration-error">{server.error} Puedes consultar los avisos ya disponibles y volver a intentarlo con Actualizar lista.</p>}
@@ -54,6 +56,7 @@ export function NotificationsList() {
       {n.href ? <a href={n.href} onClick={() => { if (!n.leida_at) void markRead(n); }}><strong>{n.titulo}</strong><span>{n.cuerpo}</span></a> : <div><strong>{n.titulo}</strong><p>{n.cuerpo}</p></div>}
       {n.created_at && <time dateTime={n.created_at}>{textValue(n.created_at)}</time>}
       <div className="notification-read-state">{n.leida_at ? <span>Leída</span> : <button className="table-action" disabled={busy} onClick={() => void markRead(n)}>Marcar leída</button>}</div>
+      <button className="table-action" disabled={busy} aria-label={`Eliminar notificación: ${n.titulo}`} onClick={() => deleteNotifications(user, [n.key])}>Eliminar</button>
     </li>)}</ul> : !server.loading && <p role="status">{search ? "No se encontraron notificaciones con esa búsqueda." : "No hay notificaciones por ahora."}</p>}
     <div className="integration-pagination"><span>{filtered.length} {filtered.length === 1 ? "notificación" : "notificaciones"}</span>{filtered.length > limit && <button className="button secondary" onClick={() => setLimit((n) => n + 20)}>Mostrar más</button>}</div>
   </Card>;

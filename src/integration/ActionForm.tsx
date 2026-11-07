@@ -194,6 +194,7 @@ export function ActionForm({
           setError("");
           try {
             for (const field of action.fields) {
+              if (field.enabledWhen && !field.enabledWhen(values)) continue;
               const v = values[field.key];
               if (
                 field.required &&
@@ -313,8 +314,8 @@ export function ActionForm({
               minLength={field.type !== "number" ? field.min : undefined}
               maxLength={field.maxLength}
               required={field.required}
-              disabled={busy}
-              value={values[field.key]}
+              disabled={busy || (field.enabledWhen !== undefined && !field.enabledWhen(values))}
+              value={field.enabledWhen && !field.enabledWhen(values) ? "" : values[field.key]}
               onChange={(e) => change(e.target.value)}
             />
           );

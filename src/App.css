@@ -1488,7 +1488,9 @@ fieldset.form-stack {
 .assignment-facts dd { margin: 0; overflow-wrap: anywhere; }
 .activity-card { margin-bottom: 24px; }
 .notifications-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.notifications-toolbar .search { flex: 1 1 240px; min-width: 0; }
+.notifications-toolbar .search { display: flex; align-items: center; flex: 1 1 240px; min-width: 0; border: 1px solid #8eaaa0; border-radius: 8px; background: #fff; }
+.notifications-toolbar .search:focus-within { border-color: #16785c; outline: 2px solid #b8ddce; outline-offset: 2px; }
+.notifications-toolbar .search input { width: 100%; min-width: 0; }
 .notification-read-state { display: flex; justify-content: flex-end; margin-top: 8px; font-size: 12px; color: var(--muted); }
 .notifications-card .activity-list strong, .notifications-card .activity-list p { overflow-wrap: anywhere; }
 .activity-list { list-style: none; padding: 0; display: grid; gap: 12px; }

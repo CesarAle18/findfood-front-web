@@ -20,6 +20,7 @@ export interface Input {
   step?: number;
   options?: [string, string][];
   source?: Source;
+  enabledWhen?: (values: Values) => boolean;
 }
 export interface Action {
   key: string;
@@ -426,16 +427,17 @@ export function foodAction(row?: Row): Action {
           ]
         : []),
       str("nombre", "Nombre", 2, 100),
-      bool("requiere_refrigeracion", "Requiere refrigeración"),
       choice("tipo_almacenamiento", "Almacenamiento", thermal),
       bool("perecedero", "Perecedero"),
-      { ...num("vida_util_dias", "Vida útil (días)", 1), required: false, step: 1 },
+      { ...num("vida_util_dias", "Vida útil (días)", 1), required: false, step: 1,
+        enabledWhen: (values) => values.perecedero === "true" },
       ...(row ? [bool("activo", "Activo")] : []),
     ],
     body: (v) => ({
-      ...(v.vida_util_dias ? { vida_util_dias: Number(v.vida_util_dias) } : {}),
+      vida_util_dias: v.perecedero === "true" && v.vida_util_dias
+        ? Number(v.vida_util_dias) : null,
       nombre: v.nombre.trim(),
-      requiere_refrigeracion: v.requiere_refrigeracion === "true",
+      requiere_refrigeracion: v.tipo_almacenamiento === "REFRIGERADO",
       tipo_almacenamiento: v.tipo_almacenamiento,
       perecedero: v.perecedero === "true",
       ...(row

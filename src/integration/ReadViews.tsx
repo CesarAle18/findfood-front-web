@@ -17,6 +17,7 @@ import { InventoryLive } from "./InventoryLive";
 import { RouteMap } from "./RouteMap";
 import { AssignmentLive } from "./AssignmentLive";
 import { NotificationsList } from "./NotificationsList";
+import { useNotifications } from "./use-notifications";
 import { useActivityObserver } from "./activity-observer";
 import { useActivity } from "./activity";
 import { canAssignDonation, donationDetails, donationHistory, nonEmptyDetails } from "./donation-display";
@@ -510,11 +511,8 @@ export function LiveBell({ href }: { href: string }) {
   useDonationRealtime();
   const user = useSession()?.session?.user.id ?? "";
   const activity = useActivity(user);
-  const read = useRead<Page<Row> & { no_leidas: number }>(
-    "/me/notificaciones?limite=1&desplazamiento=0",
-    15000,
-  );
-  const unread = (read.data?.no_leidas ?? 0) + activity.filter((n) => !n.leida_at).length;
+  const read = useNotifications();
+  const unread = (read.data?.filter((n) => !n.leida_at).length ?? 0) + activity.filter((n) => !n.leida_at).length;
   return (
     <a
       className="notification-button"

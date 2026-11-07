@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { useDeletedNotifications } from "./notification-deletion";
 
 export type Activity = { id: string; titulo: string; cuerpo: string; created_at: string; leida_at: string | null; href: string };
 const eventName = "findfood:activity";
@@ -29,8 +30,9 @@ function subscribe(callback: () => void) {
   return () => { window.removeEventListener(eventName, callback); window.removeEventListener("storage", callback); };
 }
 export function useActivity(user: string) {
+  const deleted = useDeletedNotifications(user);
   const raw = useSyncExternalStore(subscribe, () => snapshot(user));
-  return parse(raw);
+  return parse(raw).filter((notice) => !deleted.has(`local:${notice.id}`));
 }
 export function readActivity(user: string, id?: string) {
   write(user, parse(snapshot(user)).map((n) => !id || n.id === id ? { ...n, leida_at: n.leida_at ?? new Date().toISOString() } : n));
